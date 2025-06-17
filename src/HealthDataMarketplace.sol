@@ -9,6 +9,7 @@ import {IPILicenseTemplate} from "@storyprotocol/core/interfaces/modules/licensi
 import {IRegistrationWorkflows} from "@storyprotocol/periphery/contracts/interfaces/workflows/IRegistrationWorkflows.sol";
 import {WorkflowStructs} from "@storyprotocol/periphery/contracts/lib/WorkflowStructs.sol";
 import {ISPGNFT} from "@storyprotocol/periphery/contracts/interfaces/ISPGNFT.sol";
+import {PILFlavors} from "@storyprotocol/core/lib/PILFlavors.sol";
 import {RoyaltyDistributor} from "./RoyaltyDistributor.sol";
 
 /**
@@ -53,6 +54,8 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
     ILicensingModule public immutable licensingModule;
     IPILicenseTemplate public immutable pilTemplate;
     RoyaltyDistributor public immutable royaltyDistributor;
+    address public immutable royaltyPolicyLAP;
+    address public immutable currencyToken;
 
     bool public isCollectionInitialized;
     uint256 public platformFeePercent;
@@ -69,6 +72,7 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
     mapping(address => uint256[]) public userListings;
     mapping(string => uint256[]) public listingsByDataType;
     mapping(address => HealthDataMetadata) public healthDataMetadata;
+    mapping(address => uint256) public ipToLicenseTermsId; // New mapping to track license terms for each IP
 
     // Events
     event CollectionInitialized(address indexed collectionAddress);
@@ -101,6 +105,8 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
      * @param _licensingModule Story Protocol licensing module contract
      * @param _pilTemplate Story Protocol PIL template contract
      * @param _royaltyDistributor Royalty distributor contract for payments
+     * @param _royaltyPolicyLAP Story Protocol royalty policy LAP contract
+     * @param _currencyToken Currency token for royalty payments (use address(0) for native $IP)
      * @param _platformFeePercent Platform fee percentage (e.g., 5 for 5%)
      */
     constructor(
@@ -108,17 +114,22 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
         address _licensingModule,
         address _pilTemplate,
         address _royaltyDistributor,
+        address _royaltyPolicyLAP,
+        address _currencyToken,
         uint256 _platformFeePercent
     ) Ownable(msg.sender) {
         if (_registrationWorkflows == address(0)) revert ZeroAddress();
         if (_licensingModule == address(0)) revert ZeroAddress();
         if (_pilTemplate == address(0)) revert ZeroAddress();
         if (_royaltyDistributor == address(0)) revert ZeroAddress();
+        if (_royaltyPolicyLAP == address(0)) revert ZeroAddress();
 
         registrationWorkflows = IRegistrationWorkflows(_registrationWorkflows);
         licensingModule = ILicensingModule(_licensingModule);
         pilTemplate = IPILicenseTemplate(_pilTemplate);
         royaltyDistributor = RoyaltyDistributor(payable(_royaltyDistributor));
+        royaltyPolicyLAP = _royaltyPolicyLAP;
+        currencyToken = _currencyToken;
         platformFeePercent = _platformFeePercent;
     }
 
@@ -182,8 +193,27 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
             address(healthDataCollection),
             msg.sender,
             metadata,
-            true // makeIPDerivative
+            true
         );
+
+        // Register license terms for this IP
+        uint256 licenseTermsId = pilTemplate.registerLicenseTerms(
+            PILFlavors.commercialUse({
+                mintingFee: 0,
+                royaltyPolicy: royaltyPolicyLAP,
+                currencyToken: currencyToken
+            })
+        );
+
+        // Attach license terms to the IP
+        licensingModule.attachLicenseTerms(
+            ipId,
+            address(pilTemplate),
+            licenseTermsId
+        );
+
+        // Store the license terms ID for this IP
+        ipToLicenseTermsId[ipId] = licenseTermsId;
 
         // Store metadata for future reference
         healthDataMetadata[ipId] = HealthDataMetadata({
@@ -213,14 +243,18 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
         if (!listing.active) revert ListingNotActive();
         if (msg.value < listing.priceIP) revert InsufficientPayment();
 
+        // Get the license terms ID for this IP
+        uint256 licenseTermsId = ipToLicenseTermsId[listing.ipId];
+        require(licenseTermsId != 0, "License terms not found for this IP");
+
         // Mint license token through Story Protocol
         licensingModule.mintLicenseTokens({
             licensorIpId: listing.ipId,
             licenseTemplate: address(pilTemplate),
-            licenseTermsId: defaultLicenseTermsId,
+            licenseTermsId: licenseTermsId,
             amount: 1,
             receiver: msg.sender,
-            royaltyContext: "",
+            royaltyContext: "", // for PIL, royaltyContext is empty string
             maxMintingFee: 0,
             maxRevenueShare: 0
         });
@@ -336,11 +370,12 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @dev Set default license terms ID (only owner)
-     * @param licenseTermsId The license terms ID to use as default
+     * @dev Get license terms ID for a specific IP
+     * @param ipId The IP asset ID
+     * @return License terms ID
      */
-    function setDefaultLicenseTerms(uint256 licenseTermsId) external onlyOwner {
-        defaultLicenseTermsId = licenseTermsId;
+    function getLicenseTermsId(address ipId) external view returns (uint256) {
+        return ipToLicenseTermsId[ipId];
     }
 
     /**

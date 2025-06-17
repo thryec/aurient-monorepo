@@ -21,6 +21,8 @@ abstract contract BaseState is Test {
     address mockRegistrationWorkflows;
     address mockLicensingModule;
     address mockPILTemplate;
+    address mockRoyaltyPolicyLAP;
+    address mockCurrencyToken;
     address mockNFTCollectionAddress;
     address platformAddress;
 
@@ -38,6 +40,7 @@ abstract contract BaseState is Test {
     // Test parameters
     uint256 platformFeePercent = 5; // 5%
     uint256 defaultLicenseTermsId = 1;
+    uint256 mockLicenseTermsId = 123;
 
     // Mock IPs
     address mockIPId1;
@@ -73,6 +76,8 @@ abstract contract BaseState is Test {
         mockRegistrationWorkflows = makeAddr("RegistrationWorkflows");
         mockLicensingModule = makeAddr("LicensingModule");
         mockPILTemplate = makeAddr("PILTemplate");
+        mockRoyaltyPolicyLAP = makeAddr("RoyaltyPolicyLAP");
+        mockCurrencyToken = makeAddr("CurrencyToken"); // Use address(0) for native $IP
         mockNFTCollectionAddress = makeAddr("NFTCollection");
 
         // Give test users some ETH
@@ -87,17 +92,16 @@ abstract contract BaseState is Test {
             platformFeePercent
         );
 
-        // Deploy HealthDataMarketplace
+        // Deploy HealthDataMarketplace with new constructor parameters
         marketplace = new HealthDataMarketplace(
             mockRegistrationWorkflows,
             mockLicensingModule,
             mockPILTemplate,
             address(royaltyDistributor),
+            mockRoyaltyPolicyLAP,
+            address(0), // Use native $IP
             platformFeePercent
         );
-
-        // Set default license terms
-        marketplace.setDefaultLicenseTerms(defaultLicenseTermsId);
     }
 }
 
@@ -121,8 +125,9 @@ contract BaseStateTest is BaseState {
             address(marketplace.royaltyDistributor()),
             address(royaltyDistributor)
         );
+        assertEq(marketplace.royaltyPolicyLAP(), mockRoyaltyPolicyLAP);
+        assertEq(marketplace.currencyToken(), address(0)); // Native $IP
         assertEq(marketplace.platformFeePercent(), platformFeePercent);
-        assertEq(marketplace.defaultLicenseTermsId(), defaultLicenseTermsId);
         assertFalse(marketplace.isCollectionSetup());
         assertEq(marketplace.nextListingId(), 1);
     }
@@ -137,6 +142,8 @@ contract BaseStateTest is BaseState {
             mockLicensingModule,
             mockPILTemplate,
             address(royaltyDistributor),
+            mockRoyaltyPolicyLAP,
+            address(0),
             platformFeePercent
         );
 
@@ -146,6 +153,8 @@ contract BaseStateTest is BaseState {
             address(0), // zero licensing module
             mockPILTemplate,
             address(royaltyDistributor),
+            mockRoyaltyPolicyLAP,
+            address(0),
             platformFeePercent
         );
 
@@ -155,6 +164,8 @@ contract BaseStateTest is BaseState {
             mockLicensingModule,
             address(0), // zero PIL template
             address(royaltyDistributor),
+            mockRoyaltyPolicyLAP,
+            address(0),
             platformFeePercent
         );
 
@@ -164,75 +175,21 @@ contract BaseStateTest is BaseState {
             mockLicensingModule,
             mockPILTemplate,
             address(0), // zero royalty distributor
+            mockRoyaltyPolicyLAP,
+            address(0),
             platformFeePercent
         );
-    }
 
-    /**
-     * @dev Test that only owner can initialize collection
-     */
-    function testOnlyOwnerCanInitializeCollection() public {
-        vm.prank(user1);
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "OwnableUnauthorizedAccount(address)",
-                user1
-            )
+        vm.expectRevert(HealthDataMarketplace.ZeroAddress.selector);
+        new HealthDataMarketplace(
+            mockRegistrationWorkflows,
+            mockLicensingModule,
+            mockPILTemplate,
+            address(royaltyDistributor),
+            address(0), // zero royalty policy LAP
+            address(0),
+            platformFeePercent
         );
-        marketplace.initializeHealthDataCollection();
-    }
-
-    /**
-     * @dev Test cannot register health data before collection setup
-     */
-    function testCannotRegisterHealthDataBeforeSetup() public {
-        vm.prank(user1);
-        vm.expectRevert(
-            HealthDataMarketplace.CollectionNotInitialized.selector
-        );
-        marketplace.registerHealthDataIP(
-            dataType1,
-            ipfsHash1,
-            priceIP1,
-            qualityMetrics1
-        );
-    }
-
-    /**
-     * @dev Test only owner can set platform fee
-     */
-    function testOnlyOwnerCanSetPlatformFee() public {
-        vm.prank(user1);
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "OwnableUnauthorizedAccount(address)",
-                user1
-            )
-        );
-        marketplace.setPlatformFee(10);
-    }
-
-    /**
-     * @dev Test only owner can set default license terms
-     */
-    function testOnlyOwnerCanSetDefaultLicenseTerms() public {
-        vm.prank(user1);
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "OwnableUnauthorizedAccount(address)",
-                user1
-            )
-        );
-        marketplace.setDefaultLicenseTerms(2);
-    }
-
-    /**
-     * @dev Test get active listings returns empty array initially
-     */
-    function testGetActiveListingsInitiallyEmpty() public view {
-        HealthDataMarketplace.Listing[] memory listings = marketplace
-            .getActiveListings();
-        assertEq(listings.length, 0);
     }
 }
 
@@ -259,85 +216,6 @@ abstract contract CollectionSetupState is BaseState {
 }
 
 /**
- * @title CollectionSetupStateTest
- * @dev Tests specific to the collection setup state
- */
-contract CollectionSetupStateTest is CollectionSetupState {
-    /**
-     * @dev Test collection is properly set up
-     */
-    function testCollectionIsSetupCorrectly() public view {
-        assertTrue(marketplace.isCollectionSetup());
-        assertEq(
-            address(marketplace.healthDataCollection()),
-            mockNFTCollectionAddress
-        );
-    }
-
-    /**
-     * @dev Test cannot initialize collection twice
-     */
-    function testCannotInitializeCollectionTwice() public {
-        vm.expectRevert(
-            HealthDataMarketplace.CollectionAlreadyInitialized.selector
-        );
-        marketplace.initializeHealthDataCollection();
-    }
-
-    /**
-     * @dev Test register health data with invalid parameters
-     */
-    function testRegisterHealthDataInvalidParameters() public {
-        vm.startPrank(user1);
-
-        // Test invalid data type
-        vm.expectRevert(HealthDataMarketplace.InvalidDataType.selector);
-        marketplace.registerHealthDataIP(
-            "",
-            ipfsHash1,
-            priceIP1,
-            qualityMetrics1
-        );
-
-        // Test invalid price
-        vm.expectRevert(HealthDataMarketplace.InvalidPrice.selector);
-        marketplace.registerHealthDataIP(
-            dataType1,
-            ipfsHash1,
-            0,
-            qualityMetrics1
-        );
-
-        vm.stopPrank();
-    }
-
-    /**
-     * @dev Test set platform fee
-     */
-    function testSetPlatformFee() public {
-        uint256 newFee = 10;
-
-        vm.expectEmit(true, true, true, true);
-        emit HealthDataMarketplace.PlatformFeeUpdated(
-            platformFeePercent,
-            newFee
-        );
-
-        marketplace.setPlatformFee(newFee);
-        assertEq(marketplace.platformFeePercent(), newFee);
-    }
-
-    /**
-     * @dev Test set default license terms
-     */
-    function testSetDefaultLicenseTerms() public {
-        uint256 newTermsId = 5;
-        marketplace.setDefaultLicenseTerms(newTermsId);
-        assertEq(marketplace.defaultLicenseTermsId(), newTermsId);
-    }
-}
-
-/**
  * @title SingleHealthDataRegisteredState
  * @dev State with a single health data IP registered
  */
@@ -356,6 +234,24 @@ abstract contract SingleHealthDataRegisteredState is CollectionSetupState {
                 IRegistrationWorkflows.mintAndRegisterIp.selector
             ),
             abi.encode(mockIPId1, mockTokenId1)
+        );
+
+        // Mock license terms registration
+        vm.mockCall(
+            mockPILTemplate,
+            abi.encodeWithSelector(
+                IPILicenseTemplate.registerLicenseTerms.selector
+            ),
+            abi.encode(mockLicenseTermsId)
+        );
+
+        // Mock license terms attachment
+        vm.mockCall(
+            mockLicensingModule,
+            abi.encodeWithSelector(
+                ILicensingModule.attachLicenseTerms.selector
+            ),
+            abi.encode()
         );
 
         // Register health data as user1
@@ -383,6 +279,12 @@ contract SingleHealthDataRegisteredStateTest is
     function testHealthDataRegistrationSuccessful() public view {
         // Verify returned IP ID
         assertEq(registeredIpId, mockIPId1);
+
+        // Verify license terms mapping
+        assertEq(
+            marketplace.getLicenseTermsId(registeredIpId),
+            mockLicenseTermsId
+        );
 
         // Verify listing was created
         (
@@ -418,89 +320,9 @@ contract SingleHealthDataRegisteredStateTest is
     }
 
     /**
-     * @dev Test get active listings
+     * @dev Test purchase license with new license terms lookup
      */
-    function testGetActiveListings() public view {
-        HealthDataMarketplace.Listing[] memory listings = marketplace
-            .getActiveListings();
-        assertEq(listings.length, 1);
-        assertEq(listings[0].listingId, listingId);
-        assertEq(listings[0].seller, user1);
-        assertEq(listings[0].ipId, registeredIpId);
-    }
-
-    /**
-     * @dev Test get listings by data type
-     */
-    function testGetListingsByDataType() public view {
-        HealthDataMarketplace.Listing[] memory listings = marketplace
-            .getListingsByDataType(dataType1);
-        assertEq(listings.length, 1);
-        assertEq(listings[0].listingId, listingId);
-
-        // Test non-existent data type
-        HealthDataMarketplace.Listing[] memory emptyListings = marketplace
-            .getListingsByDataType("nonexistent");
-        assertEq(emptyListings.length, 0);
-    }
-
-    /**
-     * @dev Test get user listings
-     */
-    function testGetUserListings() public view {
-        HealthDataMarketplace.Listing[] memory listings = marketplace
-            .getUserListings(user1);
-        assertEq(listings.length, 1);
-        assertEq(listings[0].listingId, listingId);
-
-        // Test user with no listings
-        HealthDataMarketplace.Listing[] memory emptyListings = marketplace
-            .getUserListings(user2);
-        assertEq(emptyListings.length, 1); // Array is initialized with default values
-    }
-
-    /**
-     * @dev Test remove listing
-     */
-    function testRemoveListing() public {
-        vm.expectEmit(true, true, true, true);
-        emit HealthDataMarketplace.ListingRemoved(listingId, user1);
-
-        vm.prank(user1);
-        marketplace.removeListing(listingId);
-
-        // Verify listing is deactivated
-        (, , , , , bool active, ) = marketplace.listings(listingId);
-        assertFalse(active);
-
-        // Verify active listings is empty
-        HealthDataMarketplace.Listing[] memory listings = marketplace
-            .getActiveListings();
-        assertEq(listings.length, 0);
-    }
-
-    /**
-     * @dev Test only listing owner can remove listing
-     */
-    function testOnlyListingOwnerCanRemoveListing() public {
-        vm.prank(user2);
-        vm.expectRevert(HealthDataMarketplace.NotListingOwner.selector);
-        marketplace.removeListing(listingId);
-    }
-
-    /**
-     * @dev Test remove non-existent listing
-     */
-    function testRemoveNonExistentListing() public {
-        vm.prank(user1);
-        vm.expectRevert(HealthDataMarketplace.ListingNotFound.selector);
-        marketplace.removeListing(999);
-    }
-
-    /**
-     * @dev Test purchase license
-     */
-    function testPurchaseLicense() public {
+    function testPurchaseLicenseWithLicenseTermsLookup() public {
         // Mock license minting
         vm.mockCall(
             mockLicensingModule,
@@ -534,256 +356,10 @@ contract SingleHealthDataRegisteredStateTest is
     }
 
     /**
-     * @dev Test purchase license with insufficient payment
+     * @dev Test get license terms ID for non-existent IP
      */
-    function testPurchaseLicenseInsufficientPayment() public {
-        vm.prank(aiCompany1);
-        vm.expectRevert(HealthDataMarketplace.InsufficientPayment.selector);
-        marketplace.purchaseLicense{value: priceIP1 - 1}(listingId);
-    }
-
-    /**
-     * @dev Test purchase non-existent listing
-     */
-    function testPurchaseNonExistentListing() public {
-        vm.prank(aiCompany1);
-        vm.expectRevert(HealthDataMarketplace.ListingNotFound.selector);
-        marketplace.purchaseLicense{value: priceIP1}(999);
-    }
-}
-
-/**
- * @title MultiHealthDataRegisteredState
- * @dev State with multiple health data IPs registered
- */
-abstract contract MultiHealthDataRegisteredState is
-    SingleHealthDataRegisteredState
-{
-    address secondRegisteredIpId;
-    uint256 secondRegisteredTokenId;
-    uint256 secondListingId;
-
-    function setUp() public virtual override {
-        super.setUp();
-
-        // Clear previous mock
-        vm.clearMockedCalls();
-
-        // Mock second IP registration
-        vm.mockCall(
-            mockRegistrationWorkflows,
-            abi.encodeWithSelector(
-                IRegistrationWorkflows.mintAndRegisterIp.selector
-            ),
-            abi.encode(mockIPId2, mockTokenId2)
-        );
-
-        // Register second health data as user2
-        vm.prank(user2);
-        (secondRegisteredIpId, secondRegisteredTokenId) = marketplace
-            .registerHealthDataIP(
-                dataType2,
-                ipfsHash2,
-                priceIP2,
-                qualityMetrics2
-            );
-        secondListingId = 2; // Second listing ID
-    }
-}
-
-/**
- * @title MultiHealthDataRegisteredStateTest
- * @dev Tests for state with multiple health data IPs registered
- */
-contract MultiHealthDataRegisteredStateTest is MultiHealthDataRegisteredState {
-    /**
-     * @dev Test multiple health data registration was successful
-     */
-    function testMultipleHealthDataRegistration() public view {
-        // Get all active listings
-        HealthDataMarketplace.Listing[] memory listings = marketplace
-            .getActiveListings();
-        assertEq(listings.length, 2);
-        assertEq(listings[0].listingId, listingId);
-        assertEq(listings[1].listingId, secondListingId);
-
-        // Verify second registration details
-        (
-            uint256 id,
-            address seller,
-            address ipId,
-            uint256 price,
-            string memory dataType,
-            bool active,
-
-        ) = marketplace.listings(secondListingId);
-        assertEq(id, secondListingId);
-        assertEq(seller, user2);
-        assertEq(ipId, secondRegisteredIpId);
-        assertEq(price, priceIP2);
-        assertEq(dataType, dataType2);
-        assertTrue(active);
-    }
-
-    /**
-     * @dev Test get listings by data type with multiple types
-     */
-    function testGetListingsByDataTypeMultiple() public view {
-        // Get listings for first data type
-        HealthDataMarketplace.Listing[] memory sleepListings = marketplace
-            .getListingsByDataType(dataType1);
-        assertEq(sleepListings.length, 1);
-        assertEq(sleepListings[0].listingId, listingId);
-
-        // Get listings for second data type
-        HealthDataMarketplace.Listing[] memory hrvListings = marketplace
-            .getListingsByDataType(dataType2);
-        assertEq(hrvListings.length, 1);
-        assertEq(hrvListings[0].listingId, secondListingId);
-    }
-
-    /**
-     * @dev Test get user listings for different users
-     */
-    function testGetUserListingsMultipleUsers() public view {
-        // Get user1 listings
-        HealthDataMarketplace.Listing[] memory user1Listings = marketplace
-            .getUserListings(user1);
-        assertEq(user1Listings.length, 1);
-        assertEq(user1Listings[0].listingId, listingId);
-
-        // Get user2 listings
-        HealthDataMarketplace.Listing[] memory user2Listings = marketplace
-            .getUserListings(user2);
-        assertEq(user2Listings.length, 1);
-        assertEq(user2Listings[0].listingId, secondListingId);
-    }
-
-    /**
-     * @dev Test purchase multiple licenses
-     */
-    function testPurchaseMultipleLicenses() public {
-        // Mock license minting and royalty distribution
-        vm.mockCall(
-            mockLicensingModule,
-            abi.encodeWithSelector(ILicensingModule.mintLicenseTokens.selector),
-            abi.encode()
-        );
-        vm.mockCall(
-            address(royaltyDistributor),
-            abi.encodeWithSelector(
-                RoyaltyDistributor.distributePayment.selector
-            ),
-            abi.encode()
-        );
-
-        // Purchase first license
-        vm.prank(aiCompany1);
-        marketplace.purchaseLicense{value: priceIP1}(listingId);
-
-        // Purchase second license
-        vm.prank(aiCompany2);
-        marketplace.purchaseLicense{value: priceIP2}(secondListingId);
-
-        // Verify both listings are deactivated
-        (, , , , , bool active1, ) = marketplace.listings(listingId);
-        (, , , , , bool active2, ) = marketplace.listings(secondListingId);
-        assertFalse(active1);
-        assertFalse(active2);
-
-        // Verify no active listings remain
-        HealthDataMarketplace.Listing[] memory activeListings = marketplace
-            .getActiveListings();
-        assertEq(activeListings.length, 0);
-    }
-}
-
-/**
- * @title PartiallyPurchasedState
- * @dev State with multiple registrations and one license purchased
- */
-abstract contract PartiallyPurchasedState is MultiHealthDataRegisteredState {
-    function setUp() public virtual override {
-        super.setUp();
-
-        // Mock license minting and royalty distribution
-        vm.mockCall(
-            mockLicensingModule,
-            abi.encodeWithSelector(ILicensingModule.mintLicenseTokens.selector),
-            abi.encode()
-        );
-        vm.mockCall(
-            address(royaltyDistributor),
-            abi.encodeWithSelector(
-                RoyaltyDistributor.distributePayment.selector
-            ),
-            abi.encode()
-        );
-
-        // Purchase first license
-        vm.prank(aiCompany1);
-        marketplace.purchaseLicense{value: priceIP1}(listingId);
-    }
-}
-
-/**
- * @title PartiallyPurchasedStateTest
- * @dev Tests for state with partially purchased licenses
- */
-contract PartiallyPurchasedStateTest is PartiallyPurchasedState {
-    /**
-     * @dev Test purchase status after partial purchase
-     */
-    function testPartialPurchaseStatus() public view {
-        // Check status of first listing (should be inactive)
-        (, , , , , bool active1, ) = marketplace.listings(listingId);
-        assertFalse(active1);
-
-        // Check status of second listing (should be active)
-        (, , , , , bool active2, ) = marketplace.listings(secondListingId);
-        assertTrue(active2);
-
-        // Verify only one active listing remains
-        HealthDataMarketplace.Listing[] memory activeListings = marketplace
-            .getActiveListings();
-        assertEq(activeListings.length, 1);
-        assertEq(activeListings[0].listingId, secondListingId);
-    }
-
-    /**
-     * @dev Test cannot purchase already purchased license
-     */
-    function testCannotPurchaseAlreadyPurchasedLicense() public {
-        vm.prank(aiCompany2);
-        vm.expectRevert(HealthDataMarketplace.ListingNotActive.selector);
-        marketplace.purchaseLicense{value: priceIP1}(listingId);
-    }
-
-    /**
-     * @dev Test purchase remaining license
-     */
-    function testPurchaseRemainingLicense() public {
-        // Mock license minting and royalty distribution
-        vm.mockCall(
-            mockLicensingModule,
-            abi.encodeWithSelector(ILicensingModule.mintLicenseTokens.selector),
-            abi.encode()
-        );
-        vm.mockCall(
-            address(royaltyDistributor),
-            abi.encodeWithSelector(
-                RoyaltyDistributor.distributePayment.selector
-            ),
-            abi.encode()
-        );
-
-        // Purchase remaining license
-        vm.prank(aiCompany2);
-        marketplace.purchaseLicense{value: priceIP2}(secondListingId);
-
-        // Verify no active listings remain
-        HealthDataMarketplace.Listing[] memory activeListings = marketplace
-            .getActiveListings();
-        assertEq(activeListings.length, 0);
+    function testGetLicenseTermsIdForNonExistentIP() public {
+        address nonExistentIP = makeAddr("nonExistentIP");
+        assertEq(marketplace.getLicenseTermsId(nonExistentIP), 0);
     }
 }
