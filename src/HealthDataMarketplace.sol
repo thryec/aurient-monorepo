@@ -14,10 +14,11 @@ import {PILFlavors} from "@storyprotocol/core/lib/PILFlavors.sol";
 import {IRoyaltyModule} from "@storyprotocol/core/interfaces/modules/royalty/IRoyaltyModule.sol";
 import {IIpRoyaltyVault} from "@storyprotocol/core/interfaces/modules/royalty/policies/IIpRoyaltyVault.sol";
 import {IIPAccount} from "@storyprotocol/core/interfaces/IIPAccount.sol";
+import {console} from "forge-std/console.sol";
 
 /**
  * @title IWIP
- * @dev Interface for Wrapped IP token with deposit/withdraw functionality
+ * @dev Interface for Wrapped IP token
  */
 interface IWIP is IERC20 {
     function deposit() external payable;
@@ -26,8 +27,7 @@ interface IWIP is IERC20 {
 
 /**
  * @title HealthDataMarketplace
- * @dev Combined contract for health data IP registration and marketplace functionality
- * Supports both WIP (auto-wrapping) and standard ERC20 tokens (like MERC20 for testing)
+ * @dev Health data IP registration and marketplace with WIP auto-wrapping
  */
 contract HealthDataMarketplace is Ownable, ReentrancyGuard {
     // Custom Errors
@@ -42,8 +42,6 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
     error ZeroAddress();
     error NoEarningsToClaim();
     error NotIPOwner();
-    error EthNotAllowedForERC20();
-    error EthRequiredForWIP();
 
     // Structs
     struct Listing {
@@ -72,19 +70,11 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
     IPILicenseTemplate public immutable pilTemplate;
     IRoyaltyModule public immutable royaltyModule;
     address public immutable royaltyPolicyLAP;
-
-    // Payment token configuration
-    IERC20 public immutable PAYMENT_TOKEN;
-    bool public immutable IS_WIP_TOKEN;
-    address public constant WIP_ADDRESS =
-        0x1514000000000000000000000000000000000000; // Aeneid WIP
-    address public constant TESTNET_TOKEN =
-        0xF2104833d386a2734a4eB3B8ad6FC6812F29E38E; // Testnet MERC20
+    IWIP public immutable WIP_TOKEN;
 
     bool public isCollectionInitialized;
     uint256 public platformFeePercent;
     uint256 public nextListingId = 1;
-    uint256 public commercialRevShare = 10 * 10 ** 6; // 10% default revenue share
 
     // Collection parameters
     string public constant COLLECTION_NAME = "Aurient Health Data";
@@ -125,12 +115,6 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
     event EarningsClaimed(
         address indexed ipId,
         address indexed owner,
-        address indexed token,
-        uint256 amount
-    );
-    event EarningsClaimedAsNative(
-        address indexed ipId,
-        address indexed owner,
         uint256 amount
     );
     event PlatformFeesWithdrawn(
@@ -146,7 +130,7 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
      * @param _pilTemplate Story Protocol PIL template contract
      * @param _royaltyModule Story Protocol royalty module contract
      * @param _royaltyPolicyLAP Story Protocol royalty policy LAP contract
-     * @param _paymentToken Payment token address (WIP for mainnet, MERC20 for testnet)
+     * @param _wipToken WIP token address on Aeneid (0x1514000000000000000000000000000000000000)
      * @param _platformFeePercent Platform fee percentage (e.g., 5 for 5%)
      */
     constructor(
@@ -155,7 +139,7 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
         address _pilTemplate,
         address _royaltyModule,
         address _royaltyPolicyLAP,
-        address _paymentToken,
+        address _wipToken,
         uint256 _platformFeePercent
     ) Ownable(msg.sender) {
         if (_registrationWorkflows == address(0)) revert ZeroAddress();
@@ -163,17 +147,14 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
         if (_pilTemplate == address(0)) revert ZeroAddress();
         if (_royaltyModule == address(0)) revert ZeroAddress();
         if (_royaltyPolicyLAP == address(0)) revert ZeroAddress();
-        if (_paymentToken == address(0)) revert ZeroAddress();
+        if (_wipToken == address(0)) revert ZeroAddress();
 
         registrationWorkflows = IRegistrationWorkflows(_registrationWorkflows);
         licensingModule = ILicensingModule(_licensingModule);
         pilTemplate = IPILicenseTemplate(_pilTemplate);
         royaltyModule = IRoyaltyModule(_royaltyModule);
         royaltyPolicyLAP = _royaltyPolicyLAP;
-        PAYMENT_TOKEN = IERC20(_paymentToken);
-        IS_WIP_TOKEN =
-            (_paymentToken == WIP_ADDRESS) ||
-            (_paymentToken == TESTNET_TOKEN && block.chainid == 1513); // Aeneid testnet
+        WIP_TOKEN = IWIP(_wipToken);
         platformFeePercent = _platformFeePercent;
     }
 
@@ -209,7 +190,7 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
      * @dev Register health data as IP and create marketplace listing
      * @param dataType Type of health data (e.g., "sleep", "hrv", "activity")
      * @param ipfsHash IPFS hash containing the health data
-     * @param priceIP Price in payment tokens for licensing
+     * @param priceIP Price in $IP tokens for licensing
      * @param qualityMetrics Quality metrics for the data
      * @return ipId The IP asset ID
      * @return tokenId The NFT token ID
@@ -242,14 +223,13 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
 
         // Register license terms with user-set price as minting fee
         uint256 licenseTermsId = pilTemplate.registerLicenseTerms(
-            PILFlavors.commercialRemix({
+            PILFlavors.commercialUse({
                 mintingFee: priceIP,
-                commercialRevShare: commercialRevShare,
                 royaltyPolicy: royaltyPolicyLAP,
-                currencyToken: address(PAYMENT_TOKEN)
+                currencyToken: address(WIP_TOKEN)
             })
         );
-
+        console.log("attaching license terms");
         // Attach license terms to the IP
         licensingModule.attachLicenseTerms(
             ipId,
@@ -257,6 +237,7 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
             licenseTermsId
         );
 
+        console.log("license terms attached");
         // Store the license terms ID for this IP
         ipToLicenseTermsId[ipId] = licenseTermsId;
 
@@ -288,33 +269,20 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
         if (!listing.active) revert ListingNotActive();
 
         uint256 totalAmount = listing.priceIP;
+        if (msg.value < totalAmount) revert InsufficientPayment();
+
         uint256 platformFee = (totalAmount * platformFeePercent) / 100;
         uint256 netAmount = totalAmount - platformFee;
 
-        // Handle payment based on token type
-        if (IS_WIP_TOKEN) {
-            // WIP: Auto-wrap native IP tokens
-            if (msg.value < totalAmount) revert InsufficientPayment();
-
-            // Auto-wrap native $IP to WIP
-            IWIP(address(PAYMENT_TOKEN)).deposit{value: totalAmount}();
-
-            // Refund excess native $IP
-            if (msg.value > totalAmount) {
-                payable(msg.sender).transfer(msg.value - totalAmount);
-            }
-        } else {
-            // ERC20: Transfer tokens from user
-            if (msg.value > 0) revert EthNotAllowedForERC20();
-            PAYMENT_TOKEN.transferFrom(msg.sender, address(this), totalAmount);
-        }
+        // Auto-wrap native $IP to WIP
+        WIP_TOKEN.deposit{value: totalAmount}();
 
         // Get license terms ID
         uint256 licenseTermsId = ipToLicenseTermsId[listing.ipId];
         require(licenseTermsId != 0, "License terms not found for this IP");
 
-        // Approve Story Protocol to spend payment tokens for the net amount
-        PAYMENT_TOKEN.approve(address(licensingModule), netAmount);
+        // Approve Story Protocol to spend WIP for the net amount
+        WIP_TOKEN.approve(address(licensingModule), netAmount);
 
         // Mint license token through Story Protocol
         licensingModule.mintLicenseTokens({
@@ -328,8 +296,13 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
             maxRevenueShare: 0
         });
 
-        // Platform fee stays in our contract
-        // Net amount goes to Story Protocol → IP royalty vault
+        // Platform fee (in WIP) stays in our contract
+        // Net amount (in WIP) goes to Story Protocol → IP royalty vault
+
+        // Refund excess native $IP
+        if (msg.value > totalAmount) {
+            payable(msg.sender).transfer(msg.value - totalAmount);
+        }
 
         // Mark listing as purchased
         listing.active = false;
@@ -340,12 +313,8 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
     /**
      * @dev Claim earnings for an IP owner
      * @param ipId The IP asset ID
-     * @param unwrapToNative Whether to unwrap WIP to native $IP (only for WIP token)
      */
-    function claimEarnings(
-        address ipId,
-        bool unwrapToNative
-    ) external nonReentrant {
+    function claimEarnings(address ipId) external nonReentrant {
         // Verify caller is IP owner
         address owner = IIPAccount(payable(ipId)).owner();
         if (msg.sender != owner) revert NotIPOwner();
@@ -354,21 +323,14 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
         address vault = royaltyModule.ipRoyaltyVaults(ipId);
         require(vault != address(0), "No vault deployed");
 
-        // Claim payment tokens from vault
+        // Claim WIP tokens from vault
         uint256 amount = IIpRoyaltyVault(vault).claimRevenueOnBehalf(
             owner,
-            address(PAYMENT_TOKEN)
+            address(WIP_TOKEN)
         );
         if (amount == 0) revert NoEarningsToClaim();
 
-        if (IS_WIP_TOKEN && unwrapToNative) {
-            // Auto-unwrap WIP to native $IP for user
-            // Note: The claimRevenueOnBehalf already sent WIP to the owner
-            // This is just for event tracking - actual unwrapping would need to be done by the user
-            emit EarningsClaimedAsNative(ipId, owner, amount);
-        } else {
-            emit EarningsClaimed(ipId, owner, address(PAYMENT_TOKEN), amount);
-        }
+        emit EarningsClaimed(ipId, owner, amount);
     }
 
     /**
@@ -386,24 +348,24 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
 
     /**
      * @dev Withdraw platform fees (only owner)
-     * @param unwrapToNative Whether to unwrap WIP to native $IP (only for WIP token)
+     * @param asNative Whether to unwrap WIP to native $IP
      */
     function withdrawPlatformFees(
-        bool unwrapToNative
+        bool asNative
     ) external onlyOwner nonReentrant {
-        uint256 balance = PAYMENT_TOKEN.balanceOf(address(this));
+        uint256 balance = WIP_TOKEN.balanceOf(address(this));
         require(balance > 0, "No fees to withdraw");
 
-        if (IS_WIP_TOKEN && unwrapToNative) {
+        if (asNative) {
             // Unwrap WIP to native $IP
-            IWIP(address(PAYMENT_TOKEN)).withdraw(balance);
+            WIP_TOKEN.withdraw(balance);
             payable(owner()).transfer(balance);
-            emit PlatformFeesWithdrawn(owner(), balance, true);
         } else {
-            // Transfer tokens directly
-            PAYMENT_TOKEN.transfer(owner(), balance);
-            emit PlatformFeesWithdrawn(owner(), balance, false);
+            // Transfer WIP tokens directly
+            WIP_TOKEN.transfer(owner(), balance);
         }
+
+        emit PlatformFeesWithdrawn(owner(), balance, asNative);
     }
 
     /**
@@ -489,13 +451,6 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @dev Set commercial revenue share percentage (only owner)
-     */
-    function setCommercialRevShare(uint256 revShare) external onlyOwner {
-        commercialRevShare = revShare;
-    }
-
-    /**
      * @dev Get license terms ID for a specific IP
      */
     function getLicenseTermsId(address ipId) external view returns (uint256) {
@@ -519,21 +474,6 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
      */
     function isCollectionSetup() external view returns (bool) {
         return isCollectionInitialized;
-    }
-
-    /**
-     * @dev Get payment token info
-     */
-    function getPaymentTokenInfo()
-        external
-        view
-        returns (address token, bool isWIP, string memory symbol)
-    {
-        return (
-            address(PAYMENT_TOKEN),
-            IS_WIP_TOKEN,
-            IS_WIP_TOKEN ? "WIP" : "MERC20"
-        );
     }
 
     // Internal Functions
@@ -604,9 +544,9 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
      * @dev Emergency withdrawal function (only owner)
      */
     function emergencyWithdraw() external onlyOwner {
-        uint256 tokenBalance = PAYMENT_TOKEN.balanceOf(address(this));
-        if (tokenBalance > 0) {
-            PAYMENT_TOKEN.transfer(owner(), tokenBalance);
+        uint256 wipBalance = WIP_TOKEN.balanceOf(address(this));
+        if (wipBalance > 0) {
+            WIP_TOKEN.transfer(owner(), wipBalance);
         }
 
         uint256 ethBalance = address(this).balance;
@@ -616,9 +556,9 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @dev Receive function to accept native payments for WIP
+     * @dev Receive function to accept native $IP payments
      */
     receive() external payable {
-        require(IS_WIP_TOKEN, "Contract does not accept ETH");
+        // Contract can receive native $IP for WIP wrapping
     }
 }

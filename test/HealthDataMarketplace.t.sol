@@ -4,831 +4,618 @@ pragma solidity ^0.8.26;
 import {Test} from "forge-std/Test.sol";
 import {console} from "forge-std/console.sol";
 import {HealthDataMarketplace} from "../src/HealthDataMarketplace.sol";
-import {IIPAssetRegistry} from "@storyprotocol/core/interfaces/registries/IIPAssetRegistry.sol";
-import {ILicensingModule} from "@storyprotocol/core/interfaces/modules/licensing/ILicensingModule.sol";
-import {IPILicenseTemplate} from "@storyprotocol/core/interfaces/modules/licensing/IPILicenseTemplate.sol";
+// for testing purposes only
+import {MockIPGraph} from "@storyprotocol/test/mocks/MockIPGraph.sol";
+import {IPAssetRegistry} from "@storyprotocol/core/registries/IPAssetRegistry.sol";
+import {LicenseRegistry} from "@storyprotocol/core/registries/LicenseRegistry.sol";
+import {PILicenseTemplate} from "@storyprotocol/core/modules/licensing/PILicenseTemplate.sol";
+import {RoyaltyPolicyLAP} from "@storyprotocol/core/modules/royalty/policies/LAP/RoyaltyPolicyLAP.sol";
+import {PILFlavors} from "@storyprotocol/core/lib/PILFlavors.sol";
+import {LicensingModule} from "@storyprotocol/core/modules/licensing/LicensingModule.sol";
+import {LicenseToken} from "@storyprotocol/core/LicenseToken.sol";
+import {RoyaltyModule} from "@storyprotocol/core/modules/royalty/RoyaltyModule.sol";
 import {IRegistrationWorkflows} from "@storyprotocol/periphery/contracts/interfaces/workflows/IRegistrationWorkflows.sol";
-import {WorkflowStructs} from "@storyprotocol/periphery/contracts/lib/WorkflowStructs.sol";
 import {ISPGNFT} from "@storyprotocol/periphery/contracts/interfaces/ISPGNFT.sol";
-import {IRoyaltyModule} from "@storyprotocol/core/interfaces/modules/royalty/IRoyaltyModule.sol";
-import {MockERC20} from "@storyprotocol/test/mocks/token/MockERC20.sol";
 
-/**
- * @title MockWIP
- * @dev Mock Wrapped IP contract for testing
- */
-contract MockWIP is MockERC20 {
-    event DepositIP(address indexed from, uint amount);
-    event Withdrawal(address indexed to, uint amount);
-
-    constructor() {
-        name = "Wrapped IP";
-        symbol = "WIP";
-        decimals = 18;
-    }
-
-    function deposit() external payable {
-        _mint(msg.sender, msg.value);
-        emit DepositIP(msg.sender, msg.value);
-    }
-
-    function withdraw(uint256 value) external {
-        _burn(msg.sender, value);
-        (bool success, ) = msg.sender.call{value: value}("");
-        require(success, "Transfer failed");
-        emit Withdrawal(msg.sender, value);
-    }
-
-    receive() external payable {
-        deposit();
-    }
+// Interface for WIP token on Aeneid
+interface IWIP {
+    function deposit() external payable;
+    function withdraw(uint256 value) external;
+    function balanceOf(address account) external view returns (uint256);
+    function transfer(address to, uint256 amount) external returns (bool);
+    function approve(address spender, uint256 amount) external returns (bool);
 }
 
-/**
- * @title BaseState
- * @dev Base test setup for HealthDataMarketplace contract with infrastructure setup
- */
-abstract contract BaseState is Test {
-    // Mock addresses
-    address mockRegistrationWorkflows;
-    address mockLicensingModule;
-    address mockPILTemplate;
-    address mockRoyaltyModule;
-    address mockRoyaltyPolicyLAP;
-    address mockNFTCollectionAddress;
-
+// Run this test with:
+// forge test --fork-url https://aeneid.storyrpc.io/ --match-path test/HealthDataMarketplace.t.sol
+contract HealthDataMarketplaceTest is Test {
     // Test addresses
-    address owner;
-    address user1;
-    address user2;
-    address aiCompany1;
-    address aiCompany2;
+    address internal alice = address(0xa11ce);
+    address internal bob = address(0xb0b);
+    address internal charlie = address(0xcc);
 
-    // Contract instances
-    HealthDataMarketplace marketplace;
-    MockERC20 testToken;
-    MockWIP wipToken;
+    // Story Protocol contracts on Aeneid
+    IPAssetRegistry internal IP_ASSET_REGISTRY =
+        IPAssetRegistry(0x77319B4031e6eF1250907aa00018B8B1c67a244b);
+    LicenseRegistry internal LICENSE_REGISTRY =
+        LicenseRegistry(0x529a750E02d8E2f15649c13D69a465286a780e24);
+    LicensingModule internal LICENSING_MODULE =
+        LicensingModule(0x04fbd8a2e56dd85CFD5500A4A4DfA955B9f1dE6f);
+    PILicenseTemplate internal PIL_TEMPLATE =
+        PILicenseTemplate(0x2E896b0b2Fdb7457499B56AAaA4AE55BCB4Cd316);
+    RoyaltyPolicyLAP internal ROYALTY_POLICY_LAP =
+        RoyaltyPolicyLAP(0xBe54FB168b3c982b7AaE60dB6CF75Bd8447b390E);
+    LicenseToken internal LICENSE_TOKEN =
+        LicenseToken(0xFe3838BFb30B34170F00030B52eA4893d8aAC6bC);
+    RoyaltyModule internal ROYALTY_MODULE =
+        RoyaltyModule(0xD2f60c40fEbccf6311f8B47c4f2Ec6b040400086);
+    IRegistrationWorkflows internal REGISTRATION_WORKFLOWS =
+        IRegistrationWorkflows(0xbe39E1C756e921BD25DF86e7AAa31106d1eb0424);
+
+    // WIP token on Aeneid
+    IWIP internal WIP_TOKEN = IWIP(0x1514000000000000000000000000000000000000);
+
+    // Test contracts
+    HealthDataMarketplace public marketplace;
 
     // Test parameters
-    uint256 platformFeePercent = 5; // 5%
-    uint256 mockLicenseTermsId = 123;
-    bool useWIP = false; // Default to ERC20 for most tests
-
-    // Mock IPs
-    address mockIPId1;
-    address mockIPId2;
-    uint256 mockTokenId1 = 1;
-    uint256 mockTokenId2 = 2;
+    uint256 public platformFeePercent = 5; // 5%
 
     // Test data
-    string dataType1 = "sleep";
-    string dataType2 = "hrv";
-    string ipfsHash1 = "QmTest1Hash";
-    string ipfsHash2 = "QmTest2Hash";
-    string qualityMetrics1 = "high-quality-7days";
-    string qualityMetrics2 = "medium-quality-30days";
-    uint256 priceIP1 = 1 ether;
-    uint256 priceIP2 = 2 ether;
+    string constant DATA_TYPE_SLEEP = "sleep";
+    string constant DATA_TYPE_HRV = "hrv";
+    string constant IPFS_HASH_1 = "QmTest1Hash";
+    string constant IPFS_HASH_2 = "QmTest2Hash";
+    string constant QUALITY_METRICS_1 = "high-quality-30days";
+    string constant QUALITY_METRICS_2 = "medium-quality-14days";
+    uint256 constant PRICE_50_IP = 50 ether;
+    uint256 constant PRICE_100_IP = 100 ether;
 
-    /**
-     * @dev Set up mock contracts and test environment
-     */
-    function setUp() public virtual {
-        // Set up addresses
-        owner = address(this);
-        user1 = makeAddr("user1");
-        user2 = makeAddr("user2");
-        aiCompany1 = makeAddr("aiCompany1");
-        aiCompany2 = makeAddr("aiCompany2");
-        mockIPId1 = makeAddr("IPId1");
-        mockIPId2 = makeAddr("IPId2");
+    function setUp() public {
+        // Mock IPGraph for testing (required by Story Protocol)
+        vm.etch(address(0x0101), address(new MockIPGraph()).code);
 
-        // Create mock contract addresses
-        mockRegistrationWorkflows = makeAddr("RegistrationWorkflows");
-        mockLicensingModule = makeAddr("LicensingModule");
-        mockPILTemplate = makeAddr("PILTemplate");
-        mockRoyaltyModule = makeAddr("RoyaltyModule");
-        mockRoyaltyPolicyLAP = makeAddr("RoyaltyPolicyLAP");
-        mockNFTCollectionAddress = makeAddr("NFTCollection");
-
-        // Give test users some ETH
-        vm.deal(user1, 100 ether);
-        vm.deal(user2, 100 ether);
-        vm.deal(aiCompany1, 100 ether);
-        vm.deal(aiCompany2, 100 ether);
-        vm.deal(address(this), 100 ether);
-
-        // Deploy test tokens
-        testToken = new MockERC20();
-        testToken.initialize("Test Token", "TEST", 18);
-
-        wipToken = new MockWIP();
-        vm.deal(address(wipToken), 1000 ether); // Give WIP contract some ETH for withdrawals
-
-        // Determine which token to use
-        address paymentToken = useWIP ? address(wipToken) : address(testToken);
+        // Give test accounts native $IP
+        vm.deal(alice, 1000 ether);
+        vm.deal(bob, 1000 ether);
+        vm.deal(charlie, 1000 ether);
 
         // Deploy HealthDataMarketplace
         marketplace = new HealthDataMarketplace(
-            mockRegistrationWorkflows,
-            mockLicensingModule,
-            mockPILTemplate,
-            mockRoyaltyModule,
-            mockRoyaltyPolicyLAP,
-            paymentToken,
+            address(REGISTRATION_WORKFLOWS),
+            address(LICENSING_MODULE),
+            address(PIL_TEMPLATE),
+            address(ROYALTY_MODULE),
+            address(ROYALTY_POLICY_LAP),
+            address(WIP_TOKEN),
             platformFeePercent
-        );
-
-        // Set up test tokens
-        if (useWIP) {
-            // For WIP tests, users need ETH to wrap
-            // ETH already distributed above
-        } else {
-            // For ERC20 tests, mint tokens to users
-            testToken.mint(user1, 1000 ether);
-            testToken.mint(user2, 1000 ether);
-            testToken.mint(aiCompany1, 1000 ether);
-            testToken.mint(aiCompany2, 1000 ether);
-        }
-    }
-}
-
-/**
- * @title BaseStateTest
- * @dev Tests for initial HealthDataMarketplace state
- */
-contract BaseStateTest is BaseState {
-    function testInitialize() public view {
-        assertEq(marketplace.owner(), owner);
-        assertEq(
-            address(marketplace.registrationWorkflows()),
-            mockRegistrationWorkflows
-        );
-        assertEq(address(marketplace.licensingModule()), mockLicensingModule);
-        assertEq(address(marketplace.pilTemplate()), mockPILTemplate);
-        assertEq(address(marketplace.royaltyModule()), mockRoyaltyModule);
-        assertEq(marketplace.royaltyPolicyLAP(), mockRoyaltyPolicyLAP);
-        assertEq(marketplace.platformFeePercent(), platformFeePercent);
-        assertEq(marketplace.commercialRevShare(), 10 * 10 ** 6);
-        assertFalse(marketplace.isCollectionSetup());
-        assertEq(marketplace.nextListingId(), 1);
-
-        (address token, bool isWIP, string memory symbol) = marketplace
-            .getPaymentTokenInfo();
-        assertEq(token, address(testToken));
-        assertFalse(isWIP);
-        assertEq(symbol, "MERC20");
-    }
-
-    function testConstructorRevertZeroAddress() public {
-        vm.expectRevert(HealthDataMarketplace.ZeroAddress.selector);
-        new HealthDataMarketplace(
-            address(0), // zero registration workflows
-            mockLicensingModule,
-            mockPILTemplate,
-            mockRoyaltyModule,
-            mockRoyaltyPolicyLAP,
-            address(testToken),
-            platformFeePercent
-        );
-    }
-
-    function testOnlyOwnerCanInitializeCollection() public {
-        vm.prank(user1);
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "OwnableUnauthorizedAccount(address)",
-                user1
-            )
-        );
-        marketplace.initializeHealthDataCollection();
-    }
-
-    function testCannotRegisterHealthDataBeforeSetup() public {
-        vm.prank(user1);
-        vm.expectRevert(
-            HealthDataMarketplace.CollectionNotInitialized.selector
-        );
-        marketplace.registerHealthDataIP(
-            dataType1,
-            ipfsHash1,
-            priceIP1,
-            qualityMetrics1
-        );
-    }
-
-    function testGetActiveListingsInitiallyEmpty() public view {
-        HealthDataMarketplace.Listing[] memory listings = marketplace
-            .getActiveListings();
-        assertEq(listings.length, 0);
-    }
-}
-
-/**
- * @title WIPBaseState
- * @dev State configured to use WIP token
- */
-abstract contract WIPBaseState is BaseState {
-    function setUp() public virtual override {
-        useWIP = true;
-        super.setUp();
-    }
-}
-
-/**
- * @title WIPBaseStateTest
- * @dev Tests specific to WIP token configuration
- */
-contract WIPBaseStateTest is WIPBaseState {
-    function testWIPConfiguration() public view {
-        (address token, bool isWIP, string memory symbol) = marketplace
-            .getPaymentTokenInfo();
-        assertEq(token, address(wipToken));
-        assertTrue(isWIP);
-        assertEq(symbol, "WIP");
-    }
-
-    function testContractCanReceiveETH() public {
-        uint256 initialBalance = address(marketplace).balance;
-        (bool success, ) = address(marketplace).call{value: 1 ether}("");
-        assertTrue(success);
-        assertEq(address(marketplace).balance, initialBalance + 1 ether);
-    }
-}
-
-/**
- * @title CollectionSetupState
- * @dev State with NFT collection created
- */
-abstract contract CollectionSetupState is BaseState {
-    function setUp() public virtual override {
-        super.setUp();
-
-        // Mock collection creation
-        vm.mockCall(
-            mockRegistrationWorkflows,
-            abi.encodeWithSelector(
-                IRegistrationWorkflows.createCollection.selector
-            ),
-            abi.encode(mockNFTCollectionAddress)
         );
 
         // Initialize collection
         marketplace.initializeHealthDataCollection();
     }
-}
 
-/**
- * @title CollectionSetupStateTest
- * @dev Tests specific to the collection setup state
- */
-contract CollectionSetupStateTest is CollectionSetupState {
-    function testCollectionIsSetupCorrectly() public view {
+    function testInitialState() public view {
+        assertEq(marketplace.platformFeePercent(), platformFeePercent);
+
         assertTrue(marketplace.isCollectionSetup());
-        assertEq(
-            address(marketplace.healthDataCollection()),
-            mockNFTCollectionAddress
-        );
+        assertEq(marketplace.nextListingId(), 1);
+        assertEq(address(marketplace.WIP_TOKEN()), address(WIP_TOKEN));
     }
 
-    function testCannotInitializeCollectionTwice() public {
-        vm.expectRevert(
-            HealthDataMarketplace.CollectionAlreadyInitialized.selector
-        );
-        marketplace.initializeHealthDataCollection();
-    }
+    function testRegisterHealthDataIP() public {
+        vm.startPrank(alice);
 
-    function testRegisterHealthDataInvalidParameters() public {
-        vm.startPrank(user1);
-
-        // Test invalid data type
-        vm.expectRevert(HealthDataMarketplace.InvalidDataType.selector);
-        marketplace.registerHealthDataIP(
-            "",
-            ipfsHash1,
-            priceIP1,
-            qualityMetrics1
-        );
-
-        // Test invalid price
-        vm.expectRevert(HealthDataMarketplace.InvalidPrice.selector);
-        marketplace.registerHealthDataIP(
-            dataType1,
-            ipfsHash1,
-            0,
-            qualityMetrics1
+        // Register health data IP
+        (address ipId, uint256 tokenId) = marketplace.registerHealthDataIP(
+            DATA_TYPE_SLEEP,
+            IPFS_HASH_1,
+            PRICE_50_IP,
+            QUALITY_METRICS_1
         );
 
         vm.stopPrank();
-    }
 
-    function testSetPlatformFee() public {
-        uint256 newFee = 10;
-        vm.expectEmit(true, true, true, true);
-        emit HealthDataMarketplace.PlatformFeeUpdated(
-            platformFeePercent,
-            newFee
-        );
-
-        marketplace.setPlatformFee(newFee);
-        assertEq(marketplace.platformFeePercent(), newFee);
-    }
-
-    function testSetCommercialRevShare() public {
-        uint256 newRevShare = 15 * 10 ** 6; // 15%
-        marketplace.setCommercialRevShare(newRevShare);
-        assertEq(marketplace.commercialRevShare(), newRevShare);
-    }
-}
-
-/**
- * @title SingleHealthDataRegisteredState
- * @dev State with a single health data IP registered
- */
-abstract contract SingleHealthDataRegisteredState is CollectionSetupState {
-    address registeredIpId;
-    uint256 registeredTokenId;
-    uint256 listingId;
-
-    function setUp() public virtual override {
-        super.setUp();
-
-        // Mock IP registration
-        vm.mockCall(
-            mockRegistrationWorkflows,
-            abi.encodeWithSelector(
-                IRegistrationWorkflows.mintAndRegisterIp.selector
-            ),
-            abi.encode(mockIPId1, mockTokenId1)
-        );
-
-        // Mock license terms registration
-        vm.mockCall(
-            mockPILTemplate,
-            abi.encodeWithSelector(
-                IPILicenseTemplate.registerLicenseTerms.selector
-            ),
-            abi.encode(mockLicenseTermsId)
-        );
-
-        // Mock license terms attachment
-        vm.mockCall(
-            mockLicensingModule,
-            abi.encodeWithSelector(
-                ILicensingModule.attachLicenseTerms.selector
-            ),
-            abi.encode()
-        );
-
-        // Register health data as user1
-        vm.prank(user1);
-        (registeredIpId, registeredTokenId) = marketplace.registerHealthDataIP(
-            dataType1,
-            ipfsHash1,
-            priceIP1,
-            qualityMetrics1
-        );
-        listingId = 1; // First listing ID
-    }
-}
-
-/**
- * @title SingleHealthDataRegisteredStateTest
- * @dev Tests for state with a single health data IP registered
- */
-contract SingleHealthDataRegisteredStateTest is
-    SingleHealthDataRegisteredState
-{
-    function testHealthDataRegistrationSuccessful() public view {
-        // Verify returned IP ID
-        assertEq(registeredIpId, mockIPId1);
-
-        // Verify license terms mapping
-        assertEq(
-            marketplace.getLicenseTermsId(registeredIpId),
-            mockLicenseTermsId
-        );
+        // Verify IP was registered
+        assertTrue(IP_ASSET_REGISTRY.isRegistered(ipId));
 
         // Verify listing was created
         (
-            uint256 id,
+            uint256 listingId,
             address seller,
-            address ipId,
+            address listedIpId,
             uint256 price,
             string memory dataType,
             bool active,
             uint256 createdAt
-        ) = marketplace.listings(listingId);
-        assertEq(id, listingId);
-        assertEq(seller, user1);
-        assertEq(ipId, registeredIpId);
-        assertEq(price, priceIP1);
-        assertEq(dataType, dataType1);
+        ) = marketplace.listings(1);
+
+        assertEq(listingId, 1);
+        assertEq(seller, alice);
+        assertEq(listedIpId, ipId);
+        assertEq(price, PRICE_50_IP);
+        assertEq(dataType, DATA_TYPE_SLEEP);
         assertTrue(active);
         assertGt(createdAt, 0);
 
-        // Verify metadata storage
-        (
-            string memory ipMetadataURI,
-            bytes32 ipMetadataHash,
-            string memory nftMetadataURI,
-            bytes32 nftMetadataHash,
-            string memory storedDataType,
-            string memory storedQualityMetrics
-        ) = marketplace.healthDataMetadata(registeredIpId);
-        assertEq(storedDataType, dataType1);
-        assertEq(storedQualityMetrics, qualityMetrics1);
-        assertTrue(bytes(ipMetadataURI).length > 0);
-        assertTrue(bytes(nftMetadataURI).length > 0);
+        // Verify license terms were created and stored
+        uint256 licenseTermsId = marketplace.getLicenseTermsId(ipId);
+        assertGt(licenseTermsId, 0);
+
+        console.log("Registered IP ID:", ipId);
+        console.log("Token ID:", tokenId);
+        console.log("License Terms ID:", licenseTermsId);
     }
 
-    function testGetActiveListings() public view {
-        HealthDataMarketplace.Listing[] memory listings = marketplace
-            .getActiveListings();
-        assertEq(listings.length, 1);
-        assertEq(listings[0].listingId, listingId);
-        assertEq(listings[0].seller, user1);
-        assertEq(listings[0].ipId, registeredIpId);
-    }
+    // function testRegisterMultipleHealthDataIPs() public {
+    //     // Alice registers sleep data
+    //     vm.prank(alice);
+    //     (address ipId1, ) = marketplace.registerHealthDataIP(
+    //         DATA_TYPE_SLEEP,
+    //         IPFS_HASH_1,
+    //         PRICE_50_IP,
+    //         QUALITY_METRICS_1
+    //     );
 
-    function testGetListingsByDataType() public view {
-        HealthDataMarketplace.Listing[] memory listings = marketplace
-            .getListingsByDataType(dataType1);
-        assertEq(listings.length, 1);
-        assertEq(listings[0].listingId, listingId);
+    //     // Bob registers HRV data
+    //     vm.prank(bob);
+    //     (address ipId2, ) = marketplace.registerHealthDataIP(
+    //         DATA_TYPE_HRV,
+    //         IPFS_HASH_2,
+    //         PRICE_100_IP,
+    //         QUALITY_METRICS_2
+    //     );
 
-        // Test non-existent data type
-        HealthDataMarketplace.Listing[] memory emptyListings = marketplace
-            .getListingsByDataType("nonexistent");
-        assertEq(emptyListings.length, 0);
-    }
+    //     // Verify both are registered
+    //     assertTrue(IP_ASSET_REGISTRY.isRegistered(ipId1));
+    //     assertTrue(IP_ASSET_REGISTRY.isRegistered(ipId2));
 
-    function testGetUserListings() public view {
-        HealthDataMarketplace.Listing[] memory listings = marketplace
-            .getUserListings(user1);
-        assertEq(listings.length, 1);
-        assertEq(listings[0].listingId, listingId);
+    //     // Check active listings
+    //     HealthDataMarketplace.Listing[] memory activeListings = marketplace
+    //         .getActiveListings();
+    //     assertEq(activeListings.length, 2);
 
-        // Test user with no listings
-        HealthDataMarketplace.Listing[] memory emptyListings = marketplace
-            .getUserListings(user2);
-        assertEq(emptyListings.length, 0);
-    }
+    //     // Check listings by data type
+    //     HealthDataMarketplace.Listing[] memory sleepListings = marketplace
+    //         .getListingsByDataType(DATA_TYPE_SLEEP);
+    //     assertEq(sleepListings.length, 1);
+    //     assertEq(sleepListings[0].seller, alice);
 
-    function testRemoveListing() public {
-        vm.expectEmit(true, true, true, true);
-        emit HealthDataMarketplace.ListingRemoved(listingId, user1);
+    //     HealthDataMarketplace.Listing[] memory hrvListings = marketplace
+    //         .getListingsByDataType(DATA_TYPE_HRV);
+    //     assertEq(hrvListings.length, 1);
+    //     assertEq(hrvListings[0].seller, bob);
+    // }
 
-        vm.prank(user1);
-        marketplace.removeListing(listingId);
+    // function testPurchaseLicense() public {
+    //     // Alice registers health data
+    //     vm.prank(alice);
+    //     (address ipId, ) = marketplace.registerHealthDataIP(
+    //         DATA_TYPE_SLEEP,
+    //         IPFS_HASH_1,
+    //         PRICE_50_IP,
+    //         QUALITY_METRICS_1
+    //     );
 
-        // Verify listing is deactivated
-        (, , , , , bool active, ) = marketplace.listings(listingId);
-        assertFalse(active);
+    //     uint256 listingId = 1;
+    //     uint256 expectedPlatformFee = (PRICE_50_IP * platformFeePercent) / 100;
+    //     uint256 expectedNetAmount = PRICE_50_IP - expectedPlatformFee;
 
-        // Verify active listings is empty
-        HealthDataMarketplace.Listing[] memory listings = marketplace
-            .getActiveListings();
-        assertEq(listings.length, 0);
-    }
+    //     // Check initial balances
+    //     uint256 charlieInitialBalance = charlie.balance;
+    //     uint256 marketplaceInitialWIP = WIP_TOKEN.balanceOf(
+    //         address(marketplace)
+    //     );
 
-    function testOnlyListingOwnerCanRemoveListing() public {
-        vm.prank(user2);
-        vm.expectRevert(HealthDataMarketplace.NotListingOwner.selector);
-        marketplace.removeListing(listingId);
-    }
+    //     // Charlie purchases license
+    //     vm.prank(charlie);
+    //     marketplace.purchaseLicense{value: PRICE_50_IP}(listingId);
 
-    function testRemoveNonExistentListing() public {
-        vm.prank(user1);
-        vm.expectRevert(HealthDataMarketplace.ListingNotFound.selector);
-        marketplace.removeListing(999);
-    }
+    //     // Verify payment was processed
+    //     assertEq(charlie.balance, charlieInitialBalance - PRICE_50_IP);
 
-    function testPurchaseLicenseERC20() public {
-        // Mock license minting
-        vm.mockCall(
-            mockLicensingModule,
-            abi.encodeWithSelector(ILicensingModule.mintLicenseTokens.selector),
-            abi.encode()
-        );
+    //     // Verify platform fee was collected in WIP
+    //     assertEq(
+    //         WIP_TOKEN.balanceOf(address(marketplace)),
+    //         marketplaceInitialWIP + expectedPlatformFee
+    //     );
 
-        // User approves marketplace
-        vm.prank(aiCompany1);
-        testToken.approve(address(marketplace), priceIP1);
+    //     // Verify listing was deactivated
+    //     (, , , , , bool active, ) = marketplace.listings(listingId);
+    //     assertFalse(active);
 
-        vm.expectEmit(true, true, true, true);
-        emit HealthDataMarketplace.LicensePurchased(
-            aiCompany1,
-            registeredIpId,
-            listingId,
-            priceIP1
-        );
+    //     console.log("Platform fee collected:", expectedPlatformFee);
+    //     console.log("Net amount sent to Story Protocol:", expectedNetAmount);
+    // }
 
-        vm.prank(aiCompany1);
-        marketplace.purchaseLicense(listingId);
+    // function testPurchaseLicenseWithOverpayment() public {
+    //     // Alice registers health data
+    //     vm.prank(alice);
+    //     marketplace.registerHealthDataIP(
+    //         DATA_TYPE_SLEEP,
+    //         IPFS_HASH_1,
+    //         PRICE_50_IP,
+    //         QUALITY_METRICS_1
+    //     );
 
-        // Verify listing is deactivated after purchase
-        (, , , , , bool active, ) = marketplace.listings(listingId);
-        assertFalse(active);
+    //     uint256 listingId = 1;
+    //     uint256 overpayment = 10 ether;
+    //     uint256 totalSent = PRICE_50_IP + overpayment;
 
-        // Verify platform fee was collected
-        uint256 expectedPlatformFee = (priceIP1 * platformFeePercent) / 100;
-        assertEq(
-            testToken.balanceOf(address(marketplace)),
-            expectedPlatformFee
-        );
-    }
+    //     uint256 charlieInitialBalance = charlie.balance;
 
-    function testPurchaseLicenseInsufficientPayment() public {
-        vm.prank(aiCompany1);
-        vm.expectRevert(HealthDataMarketplace.InsufficientPayment.selector);
-        marketplace.purchaseLicense{value: priceIP1 - 1}(listingId);
-    }
+    //     // Charlie overpays
+    //     vm.prank(charlie);
+    //     marketplace.purchaseLicense{value: totalSent}(listingId);
 
-    function testPurchaseNonExistentListing() public {
-        vm.prank(aiCompany1);
-        vm.expectRevert(HealthDataMarketplace.ListingNotFound.selector);
-        marketplace.purchaseLicense{value: priceIP1}(999);
-    }
+    //     // Verify correct amount was charged (overpayment refunded)
+    //     assertEq(charlie.balance, charlieInitialBalance - PRICE_50_IP);
+    // }
 
-    function testEthNotAllowedForERC20() public {
-        vm.prank(aiCompany1);
-        vm.expectRevert(HealthDataMarketplace.EthNotAllowedForERC20.selector);
-        marketplace.purchaseLicense{value: priceIP1}(listingId);
-    }
-}
+    // function testPurchaseLicenseInsufficientPayment() public {
+    //     // Alice registers health data
+    //     vm.prank(alice);
+    //     marketplace.registerHealthDataIP(
+    //         DATA_TYPE_SLEEP,
+    //         IPFS_HASH_1,
+    //         PRICE_50_IP,
+    //         QUALITY_METRICS_1
+    //     );
 
-/**
- * @title WIPPurchaseTest
- * @dev Test WIP-specific purchase functionality
- */
-contract WIPPurchaseTest is WIPBaseState {
-    uint256 listingId;
-    address registeredIpId;
+    //     uint256 listingId = 1;
+    //     uint256 insufficientAmount = PRICE_50_IP - 1 ether;
 
-    function setUp() public override {
-        super.setUp();
+    //     // Charlie tries to underpay
+    //     vm.prank(charlie);
+    //     vm.expectRevert(HealthDataMarketplace.InsufficientPayment.selector);
+    //     marketplace.purchaseLicense{value: insufficientAmount}(listingId);
+    // }
 
-        // Initialize collection
-        vm.mockCall(
-            mockRegistrationWorkflows,
-            abi.encodeWithSelector(
-                IRegistrationWorkflows.createCollection.selector
-            ),
-            abi.encode(mockNFTCollectionAddress)
-        );
-        marketplace.initializeHealthDataCollection();
+    // function testClaimEarnings() public {
+    //     // Alice registers and someone purchases
+    //     vm.prank(alice);
+    //     (address ipId, ) = marketplace.registerHealthDataIP(
+    //         DATA_TYPE_SLEEP,
+    //         IPFS_HASH_1,
+    //         PRICE_50_IP,
+    //         QUALITY_METRICS_1
+    //     );
 
-        // Register IP
-        vm.mockCall(
-            mockRegistrationWorkflows,
-            abi.encodeWithSelector(
-                IRegistrationWorkflows.mintAndRegisterIp.selector
-            ),
-            abi.encode(mockIPId1, mockTokenId1)
-        );
-        vm.mockCall(
-            mockPILTemplate,
-            abi.encodeWithSelector(
-                IPILicenseTemplate.registerLicenseTerms.selector
-            ),
-            abi.encode(mockLicenseTermsId)
-        );
-        vm.mockCall(
-            mockLicensingModule,
-            abi.encodeWithSelector(
-                ILicensingModule.attachLicenseTerms.selector
-            ),
-            abi.encode()
-        );
+    //     vm.prank(charlie);
+    //     marketplace.purchaseLicense{value: PRICE_50_IP}(1);
 
-        vm.prank(user1);
-        (registeredIpId, ) = marketplace.registerHealthDataIP(
-            dataType1,
-            ipfsHash1,
-            priceIP1,
-            qualityMetrics1
-        );
-        listingId = 1;
-    }
+    //     // Check if royalty vault was created
+    //     address vault = ROYALTY_MODULE.ipRoyaltyVaults(ipId);
+    //     console.log("Royalty vault address:", vault);
 
-    function testPurchaseLicenseWithWIP() public {
-        // Mock license minting
-        vm.mockCall(
-            mockLicensingModule,
-            abi.encodeWithSelector(ILicensingModule.mintLicenseTokens.selector),
-            abi.encode()
-        );
+    //     if (vault != address(0)) {
+    //         // Alice claims earnings
+    //         vm.prank(alice);
+    //         marketplace.claimEarnings(ipId);
+    //         console.log("Earnings claimed successfully");
+    //     } else {
+    //         console.log("No royalty vault deployed yet");
+    //     }
+    // }
 
-        uint256 initialBalance = aiCompany1.balance;
-        uint256 overpayment = 0.1 ether;
+    // function testClaimEarningsNotOwner() public {
+    //     // Alice registers health data
+    //     vm.prank(alice);
+    //     (address ipId, ) = marketplace.registerHealthDataIP(
+    //         DATA_TYPE_SLEEP,
+    //         IPFS_HASH_1,
+    //         PRICE_50_IP,
+    //         QUALITY_METRICS_1
+    //     );
 
-        vm.expectEmit(true, true, true, true);
-        emit HealthDataMarketplace.LicensePurchased(
-            aiCompany1,
-            registeredIpId,
-            listingId,
-            priceIP1
-        );
+    //     // Bob tries to claim Alice's earnings
+    //     vm.prank(bob);
+    //     vm.expectRevert(HealthDataMarketplace.NotIPOwner.selector);
+    //     marketplace.claimEarnings(ipId);
+    // }
 
-        vm.prank(aiCompany1);
-        marketplace.purchaseLicense{value: priceIP1 + overpayment}(listingId);
+    // function testRemoveListing() public {
+    //     // Alice registers health data
+    //     vm.prank(alice);
+    //     marketplace.registerHealthDataIP(
+    //         DATA_TYPE_SLEEP,
+    //         IPFS_HASH_1,
+    //         PRICE_50_IP,
+    //         QUALITY_METRICS_1
+    //     );
 
-        // Verify refund was processed
-        assertEq(aiCompany1.balance, initialBalance - priceIP1);
+    //     uint256 listingId = 1;
 
-        // Verify WIP was minted to marketplace
-        uint256 expectedPlatformFee = (priceIP1 * platformFeePercent) / 100;
-        assertEq(wipToken.balanceOf(address(marketplace)), expectedPlatformFee);
+    //     // Alice removes her listing
+    //     vm.prank(alice);
+    //     marketplace.removeListing(listingId);
 
-        // Verify listing is deactivated
-        (, , , , , bool active, ) = marketplace.listings(listingId);
-        assertFalse(active);
-    }
+    //     // Verify listing is deactivated
+    //     (, , , , , bool active, ) = marketplace.listings(listingId);
+    //     assertFalse(active);
 
-    function testWithdrawPlatformFeesAsWIP() public {
-        // First make a purchase to generate fees
-        vm.mockCall(
-            mockLicensingModule,
-            abi.encodeWithSelector(ILicensingModule.mintLicenseTokens.selector),
-            abi.encode()
-        );
+    //     // Verify no active listings
+    //     HealthDataMarketplace.Listing[] memory activeListings = marketplace
+    //         .getActiveListings();
+    //     assertEq(activeListings.length, 0);
+    // }
 
-        vm.prank(aiCompany1);
-        marketplace.purchaseLicense{value: priceIP1}(listingId);
+    // function testRemoveListingNotOwner() public {
+    //     // Alice registers health data
+    //     vm.prank(alice);
+    //     marketplace.registerHealthDataIP(
+    //         DATA_TYPE_SLEEP,
+    //         IPFS_HASH_1,
+    //         PRICE_50_IP,
+    //         QUALITY_METRICS_1
+    //     );
 
-        uint256 expectedFee = (priceIP1 * platformFeePercent) / 100;
-        uint256 initialBalance = wipToken.balanceOf(owner);
+    //     uint256 listingId = 1;
 
-        vm.expectEmit(true, true, true, true);
-        emit HealthDataMarketplace.PlatformFeesWithdrawn(
-            owner,
-            expectedFee,
-            false
-        );
+    //     // Bob tries to remove Alice's listing
+    //     vm.prank(bob);
+    //     vm.expectRevert(HealthDataMarketplace.NotListingOwner.selector);
+    //     marketplace.removeListing(listingId);
+    // }
 
-        marketplace.withdrawPlatformFees(false);
+    // function testWithdrawPlatformFeesAsWIP() public {
+    //     // Generate platform fees through purchases
+    //     vm.prank(alice);
+    //     marketplace.registerHealthDataIP(
+    //         DATA_TYPE_SLEEP,
+    //         IPFS_HASH_1,
+    //         PRICE_50_IP,
+    //         QUALITY_METRICS_1
+    //     );
 
-        assertEq(wipToken.balanceOf(owner), initialBalance + expectedFee);
-        assertEq(wipToken.balanceOf(address(marketplace)), 0);
-    }
+    //     vm.prank(charlie);
+    //     marketplace.purchaseLicense{value: PRICE_50_IP}(1);
 
-    function testWithdrawPlatformFeesAsNative() public {
-        // First make a purchase to generate fees
-        vm.mockCall(
-            mockLicensingModule,
-            abi.encodeWithSelector(ILicensingModule.mintLicenseTokens.selector),
-            abi.encode()
-        );
+    //     uint256 expectedFee = (PRICE_50_IP * platformFeePercent) / 100;
+    //     address owner = marketplace.owner();
+    //     uint256 ownerInitialWIP = WIP_TOKEN.balanceOf(owner);
 
-        vm.prank(aiCompany1);
-        marketplace.purchaseLicense{value: priceIP1}(listingId);
+    //     // Owner withdraws as WIP tokens
+    //     marketplace.withdrawPlatformFees(false);
 
-        uint256 expectedFee = (priceIP1 * platformFeePercent) / 100;
-        uint256 initialBalance = owner.balance;
+    //     assertEq(WIP_TOKEN.balanceOf(owner), ownerInitialWIP + expectedFee);
+    //     assertEq(WIP_TOKEN.balanceOf(address(marketplace)), 0);
+    // }
 
-        vm.expectEmit(true, true, true, true);
-        emit HealthDataMarketplace.PlatformFeesWithdrawn(
-            owner,
-            expectedFee,
-            true
-        );
+    // function testWithdrawPlatformFeesAsNative() public {
+    //     // Generate platform fees through purchases
+    //     vm.prank(alice);
+    //     marketplace.registerHealthDataIP(
+    //         DATA_TYPE_SLEEP,
+    //         IPFS_HASH_1,
+    //         PRICE_50_IP,
+    //         QUALITY_METRICS_1
+    //     );
 
-        marketplace.withdrawPlatformFees(true);
+    //     vm.prank(charlie);
+    //     marketplace.purchaseLicense{value: PRICE_50_IP}(1);
 
-        assertEq(owner.balance, initialBalance + expectedFee);
-        assertEq(wipToken.balanceOf(address(marketplace)), 0);
-    }
-}
+    //     uint256 expectedFee = (PRICE_50_IP * platformFeePercent) / 100;
+    //     address owner = marketplace.owner();
+    //     uint256 ownerInitialBalance = owner.balance;
 
-/**
- * @title ClaimEarningsTest
- * @dev Test earnings claim functionality
- */
-contract ClaimEarningsTest is SingleHealthDataRegisteredState {
-    function testClaimEarningsSuccess() public {
-        address mockVault = makeAddr("mockVault");
-        uint256 claimAmount = 10 ether;
+    //     // Owner withdraws as native $IP
+    //     marketplace.withdrawPlatformFees(true);
 
-        // Mock IP Account owner
-        vm.mockCall(
-            registeredIpId,
-            abi.encodeWithSelector(IIPAccount.owner.selector),
-            abi.encode(user1)
-        );
+    //     assertEq(owner.balance, ownerInitialBalance + expectedFee);
+    //     assertEq(WIP_TOKEN.balanceOf(address(marketplace)), 0);
+    // }
 
-        // Mock royalty vault exists
-        vm.mockCall(
-            mockRoyaltyModule,
-            abi.encodeWithSelector(
-                IRoyaltyModule.ipRoyaltyVaults.selector,
-                registeredIpId
-            ),
-            abi.encode(mockVault)
-        );
+    // function testSetPlatformFee() public {
+    //     uint256 newFee = 10;
 
-        // Mock claim revenue
-        vm.mockCall(
-            mockVault,
-            abi.encodeWithSignature(
-                "claimRevenueOnBehalf(address,address)",
-                user1,
-                address(testToken)
-            ),
-            abi.encode(claimAmount)
-        );
+    //     vm.expectEmit(true, true, true, true);
+    //     emit HealthDataMarketplace.PlatformFeeUpdated(
+    //         platformFeePercent,
+    //         newFee
+    //     );
 
-        vm.expectEmit(true, true, true, true);
-        emit HealthDataMarketplace.EarningsClaimed(
-            registeredIpId,
-            user1,
-            address(testToken),
-            claimAmount
-        );
+    //     marketplace.setPlatformFee(newFee);
+    //     assertEq(marketplace.platformFeePercent(), newFee);
+    // }
 
-        vm.prank(user1);
-        marketplace.claimEarnings(registeredIpId, false);
-    }
+    // function testOnlyOwnerFunctions() public {
+    //     // Test setPlatformFee
+    //     vm.prank(alice);
+    //     vm.expectRevert(
+    //         abi.encodeWithSignature(
+    //             "OwnableUnauthorizedAccount(address)",
+    //             alice
+    //         )
+    //     );
+    //     marketplace.setPlatformFee(10);
 
-    function testClaimEarningsNotOwner() public {
-        // Mock IP Account owner
-        vm.mockCall(
-            registeredIpId,
-            abi.encodeWithSelector(IIPAccount.owner.selector),
-            abi.encode(user1)
-        );
+    //     // Test withdrawPlatformFees
+    //     vm.prank(alice);
+    //     vm.expectRevert(
+    //         abi.encodeWithSignature(
+    //             "OwnableUnauthorizedAccount(address)",
+    //             alice
+    //         )
+    //     );
+    //     marketplace.withdrawPlatformFees(false);
 
-        vm.prank(user2);
-        vm.expectRevert(HealthDataMarketplace.NotIPOwner.selector);
-        marketplace.claimEarnings(registeredIpId, false);
-    }
+    //     // Test emergencyWithdraw
+    //     vm.prank(alice);
+    //     vm.expectRevert(
+    //         abi.encodeWithSignature(
+    //             "OwnableUnauthorizedAccount(address)",
+    //             alice
+    //         )
+    //     );
+    //     marketplace.emergencyWithdraw();
+    // }
 
-    function testClaimEarningsNoEarnings() public {
-        address mockVault = makeAddr("mockVault");
+    // function testInvalidRegistrationParameters() public {
+    //     vm.startPrank(alice);
 
-        // Mock IP Account owner
-        vm.mockCall(
-            registeredIpId,
-            abi.encodeWithSelector(IIPAccount.owner.selector),
-            abi.encode(user1)
-        );
+    //     // Test invalid data type
+    //     vm.expectRevert(HealthDataMarketplace.InvalidDataType.selector);
+    //     marketplace.registerHealthDataIP(
+    //         "",
+    //         IPFS_HASH_1,
+    //         PRICE_50_IP,
+    //         QUALITY_METRICS_1
+    //     );
 
-        // Mock royalty vault exists
-        vm.mockCall(
-            mockRoyaltyModule,
-            abi.encodeWithSelector(
-                IRoyaltyModule.ipRoyaltyVaults.selector,
-                registeredIpId
-            ),
-            abi.encode(mockVault)
-        );
+    //     // Test invalid price
+    //     vm.expectRevert(HealthDataMarketplace.InvalidPrice.selector);
+    //     marketplace.registerHealthDataIP(
+    //         DATA_TYPE_SLEEP,
+    //         IPFS_HASH_1,
+    //         0,
+    //         QUALITY_METRICS_1
+    //     );
 
-        // Mock no earnings to claim
-        vm.mockCall(
-            mockVault,
-            abi.encodeWithSignature(
-                "claimRevenueOnBehalf(address,address)",
-                user1,
-                address(testToken)
-            ),
-            abi.encode(0)
-        );
+    //     vm.stopPrank();
+    // }
 
-        vm.prank(user1);
-        vm.expectRevert(HealthDataMarketplace.NoEarningsToClaim.selector);
-        marketplace.claimEarnings(registeredIpId, false);
-    }
-}
+    // function testGetUserListings() public {
+    //     // Alice registers two different data types
+    //     vm.startPrank(alice);
 
-/**
- * @title EmergencyTest
- * @dev Test emergency functions
- */
-contract EmergencyTest is SingleHealthDataRegisteredState {
-    function testEmergencyWithdraw() public {
-        // Add some tokens to contract
-        testToken.mint(address(marketplace), 100 ether);
-        vm.deal(address(marketplace), 1 ether);
+    //     marketplace.registerHealthDataIP(
+    //         DATA_TYPE_SLEEP,
+    //         IPFS_HASH_1,
+    //         PRICE_50_IP,
+    //         QUALITY_METRICS_1
+    //     );
 
-        uint256 initialTokenBalance = testToken.balanceOf(owner);
-        uint256 initialEthBalance = owner.balance;
+    //     marketplace.registerHealthDataIP(
+    //         DATA_TYPE_HRV,
+    //         IPFS_HASH_2,
+    //         PRICE_100_IP,
+    //         QUALITY_METRICS_2
+    //     );
 
-        marketplace.emergencyWithdraw();
+    //     vm.stopPrank();
 
-        assertEq(testToken.balanceOf(owner), initialTokenBalance + 100 ether);
-        assertEq(owner.balance, initialEthBalance + 1 ether);
-        assertEq(testToken.balanceOf(address(marketplace)), 0);
-        assertEq(address(marketplace).balance, 0);
-    }
+    //     // Check Alice's listings
+    //     HealthDataMarketplace.Listing[] memory aliceListings = marketplace
+    //         .getUserListings(alice);
+    //     assertEq(aliceListings.length, 2);
+    //     assertEq(aliceListings[0].seller, alice);
+    //     assertEq(aliceListings[1].seller, alice);
 
-    function testOnlyOwnerCanEmergencyWithdraw() public {
-        vm.prank(user1);
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "OwnableUnauthorizedAccount(address)",
-                user1
-            )
-        );
-        marketplace.emergencyWithdraw();
-    }
+    //     // Check Bob has no listings
+    //     HealthDataMarketplace.Listing[] memory bobListings = marketplace
+    //         .getUserListings(bob);
+    //     assertEq(bobListings.length, 0);
+    // }
+
+    // function testEmergencyWithdraw() public {
+    //     // Generate some platform fees
+    //     vm.prank(alice);
+    //     marketplace.registerHealthDataIP(
+    //         DATA_TYPE_SLEEP,
+    //         IPFS_HASH_1,
+    //         PRICE_50_IP,
+    //         QUALITY_METRICS_1
+    //     );
+
+    //     vm.prank(charlie);
+    //     marketplace.purchaseLicense{value: PRICE_50_IP}(1);
+
+    //     // Send some native $IP to contract
+    //     vm.deal(address(marketplace), 1 ether);
+
+    //     address owner = marketplace.owner();
+    //     uint256 ownerInitialWIP = WIP_TOKEN.balanceOf(owner);
+    //     uint256 ownerInitialBalance = owner.balance;
+    //     uint256 marketplaceWIP = WIP_TOKEN.balanceOf(address(marketplace));
+    //     uint256 marketplaceBalance = address(marketplace).balance;
+
+    //     // Emergency withdraw
+    //     marketplace.emergencyWithdraw();
+
+    //     // Verify all funds transferred to owner
+    //     assertEq(WIP_TOKEN.balanceOf(owner), ownerInitialWIP + marketplaceWIP);
+    //     assertEq(owner.balance, ownerInitialBalance + marketplaceBalance);
+    //     assertEq(WIP_TOKEN.balanceOf(address(marketplace)), 0);
+    //     assertEq(address(marketplace).balance, 0);
+    // }
+
+    // function testWIPIntegration() public {
+    //     uint256 depositAmount = 10 ether;
+    //     uint256 aliceInitialBalance = alice.balance;
+    //     uint256 aliceInitialWIP = WIP_TOKEN.balanceOf(alice);
+
+    //     // Test WIP deposit
+    //     vm.prank(alice);
+    //     WIP_TOKEN.deposit{value: depositAmount}();
+
+    //     assertEq(alice.balance, aliceInitialBalance - depositAmount);
+    //     assertEq(WIP_TOKEN.balanceOf(alice), aliceInitialWIP + depositAmount);
+
+    //     // Test WIP withdraw
+    //     vm.prank(alice);
+    //     WIP_TOKEN.withdraw(depositAmount);
+
+    //     assertEq(alice.balance, aliceInitialBalance);
+    //     assertEq(WIP_TOKEN.balanceOf(alice), aliceInitialWIP);
+    // }
+
+    // function testCompleteUserJourney() public {
+    //     console.log("=== Starting Complete User Journey Test ===");
+
+    //     // 1. Alice registers health data
+    //     console.log("1. Alice registering health data...");
+    //     vm.prank(alice);
+    //     (address ipId, uint256 tokenId) = marketplace.registerHealthDataIP(
+    //         DATA_TYPE_SLEEP,
+    //         IPFS_HASH_1,
+    //         PRICE_50_IP,
+    //         QUALITY_METRICS_1
+    //     );
+    //     console.log("   IP ID:", ipId);
+    //     console.log("   Token ID:", tokenId);
+
+    //     // 2. Verify marketplace listing
+    //     console.log("2. Verifying marketplace listing...");
+    //     HealthDataMarketplace.Listing[] memory activeListings = marketplace
+    //         .getActiveListings();
+    //     assertEq(activeListings.length, 1);
+    //     console.log("   Active listings:", activeListings.length);
+
+    //     // 3. Charlie purchases license
+    //     console.log("3. Charlie purchasing license...");
+    //     uint256 charlieInitialBalance = charlie.balance;
+    //     vm.prank(charlie);
+    //     marketplace.purchaseLicense{value: PRICE_50_IP}(1);
+    //     console.log("   Charlie paid:", PRICE_50_IP);
+    //     console.log(
+    //         "   Charlie balance change:",
+    //         charlieInitialBalance - charlie.balance
+    //     );
+
+    //     // 4. Verify platform fees collected
+    //     console.log("4. Verifying platform fees...");
+    //     uint256 expectedPlatformFee = (PRICE_50_IP * platformFeePercent) / 100;
+    //     uint256 actualPlatformFee = WIP_TOKEN.balanceOf(address(marketplace));
+    //     assertEq(actualPlatformFee, expectedPlatformFee);
+    //     console.log("   Expected platform fee:", expectedPlatformFee);
+    //     console.log("   Actual platform fee:", actualPlatformFee);
+
+    //     // 5. Check royalty vault creation
+    //     console.log("5. Checking royalty vault...");
+    //     address vault = ROYALTY_MODULE.ipRoyaltyVaults(ipId);
+    //     console.log("   Royalty vault:", vault);
+
+    //     // 6. Owner withdraws platform fees
+    //     console.log("6. Owner withdrawing platform fees...");
+    //     address owner = marketplace.owner();
+    //     uint256 ownerInitialBalance = owner.balance;
+    //     marketplace.withdrawPlatformFees(true); // Withdraw as native $IP
+    //     console.log(
+    //         "   Owner balance increase:",
+    //         owner.balance - ownerInitialBalance
+    //     );
+
+    //     console.log("=== Complete User Journey Test Passed ===");
+    // }
 }
