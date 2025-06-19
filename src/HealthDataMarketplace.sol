@@ -213,7 +213,7 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
             qualityMetrics
         );
 
-        // Single call: mint NFT + register as IP
+        // mint NFT + register as IP
         (ipId, tokenId) = registrationWorkflows.mintAndRegisterIp(
             address(healthDataCollection),
             msg.sender,
@@ -229,15 +229,7 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
                 currencyToken: address(WIP_TOKEN)
             })
         );
-        console.log("attaching license terms");
-        // Attach license terms to the IP
-        licensingModule.attachLicenseTerms(
-            ipId,
-            address(pilTemplate),
-            licenseTermsId
-        );
 
-        console.log("license terms attached");
         // Store the license terms ID for this IP
         ipToLicenseTermsId[ipId] = licenseTermsId;
 
@@ -271,8 +263,8 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
         uint256 totalAmount = listing.priceIP;
         if (msg.value < totalAmount) revert InsufficientPayment();
 
-        uint256 platformFee = (totalAmount * platformFeePercent) / 100;
-        uint256 netAmount = totalAmount - platformFee;
+        // uint256 platformFee = (totalAmount * platformFeePercent) / 100;
+        // uint256 netAmount = totalAmount - platformFee;
 
         // Auto-wrap native $IP to WIP
         WIP_TOKEN.deposit{value: totalAmount}();
@@ -282,7 +274,9 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
         require(licenseTermsId != 0, "License terms not found for this IP");
 
         // Approve Story Protocol to spend WIP for the net amount
-        WIP_TOKEN.approve(address(licensingModule), netAmount);
+        WIP_TOKEN.approve(address(licensingModule), totalAmount);
+        WIP_TOKEN.approve(address(royaltyModule), totalAmount);
+        console.log("token approved for licensing module");
 
         // Mint license token through Story Protocol
         licensingModule.mintLicenseTokens({
@@ -292,12 +286,11 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
             amount: 1,
             receiver: msg.sender,
             royaltyContext: "",
-            maxMintingFee: netAmount,
+            maxMintingFee: totalAmount,
             maxRevenueShare: 0
         });
 
-        // Platform fee (in WIP) stays in our contract
-        // Net amount (in WIP) goes to Story Protocol → IP royalty vault
+        console.log("license minted");
 
         // Refund excess native $IP
         if (msg.value > totalAmount) {

@@ -14,6 +14,7 @@ import {PILFlavors} from "@storyprotocol/core/lib/PILFlavors.sol";
 import {LicensingModule} from "@storyprotocol/core/modules/licensing/LicensingModule.sol";
 import {LicenseToken} from "@storyprotocol/core/LicenseToken.sol";
 import {RoyaltyModule} from "@storyprotocol/core/modules/royalty/RoyaltyModule.sol";
+import {IIPAccount} from "@storyprotocol/core/interfaces/IIPAccount.sol";
 import {IRegistrationWorkflows} from "@storyprotocol/periphery/contracts/interfaces/workflows/IRegistrationWorkflows.sol";
 import {ISPGNFT} from "@storyprotocol/periphery/contracts/interfaces/ISPGNFT.sol";
 
@@ -91,13 +92,14 @@ contract HealthDataMarketplaceTest is Test {
             platformFeePercent
         );
 
+        console.log("Marketplace deployed at:", address(marketplace));
+
         // Initialize collection
         marketplace.initializeHealthDataCollection();
     }
 
     function testInitialState() public view {
         assertEq(marketplace.platformFeePercent(), platformFeePercent);
-
         assertTrue(marketplace.isCollectionSetup());
         assertEq(marketplace.nextListingId(), 1);
         assertEq(address(marketplace.WIP_TOKEN()), address(WIP_TOKEN));
@@ -106,12 +108,22 @@ contract HealthDataMarketplaceTest is Test {
     function testRegisterHealthDataIP() public {
         vm.startPrank(alice);
 
-        // Register health data IP
+        // Register health data IP (without attachLicenseTerms)
         (address ipId, uint256 tokenId) = marketplace.registerHealthDataIP(
             DATA_TYPE_SLEEP,
             IPFS_HASH_1,
             PRICE_50_IP,
             QUALITY_METRICS_1
+        );
+
+        // Get the license terms ID that was stored
+        uint256 licenseTermsId = marketplace.ipToLicenseTermsId(ipId);
+
+        // Alice calls attachLicenseTerms directly
+        LICENSING_MODULE.attachLicenseTerms(
+            ipId,
+            address(PIL_TEMPLATE),
+            licenseTermsId
         );
 
         vm.stopPrank();
@@ -139,7 +151,6 @@ contract HealthDataMarketplaceTest is Test {
         assertGt(createdAt, 0);
 
         // Verify license terms were created and stored
-        uint256 licenseTermsId = marketplace.getLicenseTermsId(ipId);
         assertGt(licenseTermsId, 0);
 
         console.log("Registered IP ID:", ipId);
@@ -147,96 +158,117 @@ contract HealthDataMarketplaceTest is Test {
         console.log("License Terms ID:", licenseTermsId);
     }
 
-    // function testRegisterMultipleHealthDataIPs() public {
-    //     // Alice registers sleep data
-    //     vm.prank(alice);
-    //     (address ipId1, ) = marketplace.registerHealthDataIP(
-    //         DATA_TYPE_SLEEP,
-    //         IPFS_HASH_1,
-    //         PRICE_50_IP,
-    //         QUALITY_METRICS_1
-    //     );
+    function testRegisterMultipleHealthDataIPs() public {
+        // Alice registers sleep data
+        vm.startPrank(alice);
+        (address ipId1, ) = marketplace.registerHealthDataIP(
+            DATA_TYPE_SLEEP,
+            IPFS_HASH_1,
+            PRICE_50_IP,
+            QUALITY_METRICS_1
+        );
+        uint256 licenseTermsId1 = marketplace.ipToLicenseTermsId(ipId1);
+        LICENSING_MODULE.attachLicenseTerms(
+            ipId1,
+            address(PIL_TEMPLATE),
+            licenseTermsId1
+        );
+        vm.stopPrank();
 
-    //     // Bob registers HRV data
-    //     vm.prank(bob);
-    //     (address ipId2, ) = marketplace.registerHealthDataIP(
-    //         DATA_TYPE_HRV,
-    //         IPFS_HASH_2,
-    //         PRICE_100_IP,
-    //         QUALITY_METRICS_2
-    //     );
+        // Bob registers HRV data
+        vm.startPrank(bob);
+        (address ipId2, ) = marketplace.registerHealthDataIP(
+            DATA_TYPE_HRV,
+            IPFS_HASH_2,
+            PRICE_100_IP,
+            QUALITY_METRICS_2
+        );
+        uint256 licenseTermsId2 = marketplace.ipToLicenseTermsId(ipId2);
+        LICENSING_MODULE.attachLicenseTerms(
+            ipId2,
+            address(PIL_TEMPLATE),
+            licenseTermsId2
+        );
+        vm.stopPrank();
 
-    //     // Verify both are registered
-    //     assertTrue(IP_ASSET_REGISTRY.isRegistered(ipId1));
-    //     assertTrue(IP_ASSET_REGISTRY.isRegistered(ipId2));
+        // Verify both are registered
+        assertTrue(IP_ASSET_REGISTRY.isRegistered(ipId1));
+        assertTrue(IP_ASSET_REGISTRY.isRegistered(ipId2));
 
-    //     // Check active listings
-    //     HealthDataMarketplace.Listing[] memory activeListings = marketplace
-    //         .getActiveListings();
-    //     assertEq(activeListings.length, 2);
+        // Check active listings
+        HealthDataMarketplace.Listing[] memory activeListings = marketplace
+            .getActiveListings();
+        assertEq(activeListings.length, 2);
 
-    //     // Check listings by data type
-    //     HealthDataMarketplace.Listing[] memory sleepListings = marketplace
-    //         .getListingsByDataType(DATA_TYPE_SLEEP);
-    //     assertEq(sleepListings.length, 1);
-    //     assertEq(sleepListings[0].seller, alice);
+        // Check listings by data type
+        HealthDataMarketplace.Listing[] memory sleepListings = marketplace
+            .getListingsByDataType(DATA_TYPE_SLEEP);
+        assertEq(sleepListings.length, 1);
+        assertEq(sleepListings[0].seller, alice);
 
-    //     HealthDataMarketplace.Listing[] memory hrvListings = marketplace
-    //         .getListingsByDataType(DATA_TYPE_HRV);
-    //     assertEq(hrvListings.length, 1);
-    //     assertEq(hrvListings[0].seller, bob);
-    // }
+        HealthDataMarketplace.Listing[] memory hrvListings = marketplace
+            .getListingsByDataType(DATA_TYPE_HRV);
+        assertEq(hrvListings.length, 1);
+        assertEq(hrvListings[0].seller, bob);
+    }
 
-    // function testPurchaseLicense() public {
+    function testPurchaseLicense() public {
+        // Alice registers health data
+        vm.startPrank(alice);
+        (address ipId, ) = marketplace.registerHealthDataIP(
+            DATA_TYPE_SLEEP,
+            IPFS_HASH_1,
+            PRICE_50_IP,
+            QUALITY_METRICS_1
+        );
+        uint256 licenseTermsId = marketplace.ipToLicenseTermsId(ipId);
+        LICENSING_MODULE.attachLicenseTerms(
+            ipId,
+            address(PIL_TEMPLATE),
+            licenseTermsId
+        );
+        vm.stopPrank();
+
+        uint256 listingId = 1;
+
+        // Check initial balances
+        uint256 charlieInitialBalance = charlie.balance;
+        uint256 marketplaceInitialWIP = WIP_TOKEN.balanceOf(
+            address(marketplace)
+        );
+
+        // Charlie purchases license
+        vm.prank(charlie);
+
+        // check charlie's balance before purchase
+        console.log("Charlie's initial balance:", charlieInitialBalance);
+        marketplace.purchaseLicense{value: PRICE_50_IP}(listingId);
+
+        // Verify payment was processed
+        assertEq(charlie.balance, charlieInitialBalance - PRICE_50_IP);
+        console.log("payment processed");
+
+        // Verify listing was deactivated
+        (, , , , , bool active, ) = marketplace.listings(listingId);
+        assertFalse(active);
+    }
+
+    // function testPurchaseLicenseWithOverpayment() public {
     //     // Alice registers health data
-    //     vm.prank(alice);
+    //     vm.startPrank(alice);
     //     (address ipId, ) = marketplace.registerHealthDataIP(
     //         DATA_TYPE_SLEEP,
     //         IPFS_HASH_1,
     //         PRICE_50_IP,
     //         QUALITY_METRICS_1
     //     );
-
-    //     uint256 listingId = 1;
-    //     uint256 expectedPlatformFee = (PRICE_50_IP * platformFeePercent) / 100;
-    //     uint256 expectedNetAmount = PRICE_50_IP - expectedPlatformFee;
-
-    //     // Check initial balances
-    //     uint256 charlieInitialBalance = charlie.balance;
-    //     uint256 marketplaceInitialWIP = WIP_TOKEN.balanceOf(
-    //         address(marketplace)
+    //     uint256 licenseTermsId = marketplace.ipToLicenseTermsId(ipId);
+    //     LICENSING_MODULE.attachLicenseTerms(
+    //         ipId,
+    //         address(PIL_TEMPLATE),
+    //         licenseTermsId
     //     );
-
-    //     // Charlie purchases license
-    //     vm.prank(charlie);
-    //     marketplace.purchaseLicense{value: PRICE_50_IP}(listingId);
-
-    //     // Verify payment was processed
-    //     assertEq(charlie.balance, charlieInitialBalance - PRICE_50_IP);
-
-    //     // Verify platform fee was collected in WIP
-    //     assertEq(
-    //         WIP_TOKEN.balanceOf(address(marketplace)),
-    //         marketplaceInitialWIP + expectedPlatformFee
-    //     );
-
-    //     // Verify listing was deactivated
-    //     (, , , , , bool active, ) = marketplace.listings(listingId);
-    //     assertFalse(active);
-
-    //     console.log("Platform fee collected:", expectedPlatformFee);
-    //     console.log("Net amount sent to Story Protocol:", expectedNetAmount);
-    // }
-
-    // function testPurchaseLicenseWithOverpayment() public {
-    //     // Alice registers health data
-    //     vm.prank(alice);
-    //     marketplace.registerHealthDataIP(
-    //         DATA_TYPE_SLEEP,
-    //         IPFS_HASH_1,
-    //         PRICE_50_IP,
-    //         QUALITY_METRICS_1
-    //     );
+    //     vm.stopPrank();
 
     //     uint256 listingId = 1;
     //     uint256 overpayment = 10 ether;
@@ -254,13 +286,20 @@ contract HealthDataMarketplaceTest is Test {
 
     // function testPurchaseLicenseInsufficientPayment() public {
     //     // Alice registers health data
-    //     vm.prank(alice);
-    //     marketplace.registerHealthDataIP(
+    //     vm.startPrank(alice);
+    //     (address ipId, ) = marketplace.registerHealthDataIP(
     //         DATA_TYPE_SLEEP,
     //         IPFS_HASH_1,
     //         PRICE_50_IP,
     //         QUALITY_METRICS_1
     //     );
+    //     uint256 licenseTermsId = marketplace.ipToLicenseTermsId(ipId);
+    //     LICENSING_MODULE.attachLicenseTerms(
+    //         ipId,
+    //         address(PIL_TEMPLATE),
+    //         licenseTermsId
+    //     );
+    //     vm.stopPrank();
 
     //     uint256 listingId = 1;
     //     uint256 insufficientAmount = PRICE_50_IP - 1 ether;
@@ -273,13 +312,20 @@ contract HealthDataMarketplaceTest is Test {
 
     // function testClaimEarnings() public {
     //     // Alice registers and someone purchases
-    //     vm.prank(alice);
+    //     vm.startPrank(alice);
     //     (address ipId, ) = marketplace.registerHealthDataIP(
     //         DATA_TYPE_SLEEP,
     //         IPFS_HASH_1,
     //         PRICE_50_IP,
     //         QUALITY_METRICS_1
     //     );
+    //     uint256 licenseTermsId = marketplace.ipToLicenseTermsId(ipId);
+    //     LICENSING_MODULE.attachLicenseTerms(
+    //         ipId,
+    //         address(PIL_TEMPLATE),
+    //         licenseTermsId
+    //     );
+    //     vm.stopPrank();
 
     //     vm.prank(charlie);
     //     marketplace.purchaseLicense{value: PRICE_50_IP}(1);
@@ -300,13 +346,20 @@ contract HealthDataMarketplaceTest is Test {
 
     // function testClaimEarningsNotOwner() public {
     //     // Alice registers health data
-    //     vm.prank(alice);
+    //     vm.startPrank(alice);
     //     (address ipId, ) = marketplace.registerHealthDataIP(
     //         DATA_TYPE_SLEEP,
     //         IPFS_HASH_1,
     //         PRICE_50_IP,
     //         QUALITY_METRICS_1
     //     );
+    //     uint256 licenseTermsId = marketplace.ipToLicenseTermsId(ipId);
+    //     LICENSING_MODULE.attachLicenseTerms(
+    //         ipId,
+    //         address(PIL_TEMPLATE),
+    //         licenseTermsId
+    //     );
+    //     vm.stopPrank();
 
     //     // Bob tries to claim Alice's earnings
     //     vm.prank(bob);
@@ -316,13 +369,20 @@ contract HealthDataMarketplaceTest is Test {
 
     // function testRemoveListing() public {
     //     // Alice registers health data
-    //     vm.prank(alice);
-    //     marketplace.registerHealthDataIP(
+    //     vm.startPrank(alice);
+    //     (address ipId, ) = marketplace.registerHealthDataIP(
     //         DATA_TYPE_SLEEP,
     //         IPFS_HASH_1,
     //         PRICE_50_IP,
     //         QUALITY_METRICS_1
     //     );
+    //     uint256 licenseTermsId = marketplace.ipToLicenseTermsId(ipId);
+    //     LICENSING_MODULE.attachLicenseTerms(
+    //         ipId,
+    //         address(PIL_TEMPLATE),
+    //         licenseTermsId
+    //     );
+    //     vm.stopPrank();
 
     //     uint256 listingId = 1;
 
@@ -342,13 +402,20 @@ contract HealthDataMarketplaceTest is Test {
 
     // function testRemoveListingNotOwner() public {
     //     // Alice registers health data
-    //     vm.prank(alice);
-    //     marketplace.registerHealthDataIP(
+    //     vm.startPrank(alice);
+    //     (address ipId, ) = marketplace.registerHealthDataIP(
     //         DATA_TYPE_SLEEP,
     //         IPFS_HASH_1,
     //         PRICE_50_IP,
     //         QUALITY_METRICS_1
     //     );
+    //     uint256 licenseTermsId = marketplace.ipToLicenseTermsId(ipId);
+    //     LICENSING_MODULE.attachLicenseTerms(
+    //         ipId,
+    //         address(PIL_TEMPLATE),
+    //         licenseTermsId
+    //     );
+    //     vm.stopPrank();
 
     //     uint256 listingId = 1;
 
@@ -360,13 +427,20 @@ contract HealthDataMarketplaceTest is Test {
 
     // function testWithdrawPlatformFeesAsWIP() public {
     //     // Generate platform fees through purchases
-    //     vm.prank(alice);
-    //     marketplace.registerHealthDataIP(
+    //     vm.startPrank(alice);
+    //     (address ipId, ) = marketplace.registerHealthDataIP(
     //         DATA_TYPE_SLEEP,
     //         IPFS_HASH_1,
     //         PRICE_50_IP,
     //         QUALITY_METRICS_1
     //     );
+    //     uint256 licenseTermsId = marketplace.ipToLicenseTermsId(ipId);
+    //     LICENSING_MODULE.attachLicenseTerms(
+    //         ipId,
+    //         address(PIL_TEMPLATE),
+    //         licenseTermsId
+    //     );
+    //     vm.stopPrank();
 
     //     vm.prank(charlie);
     //     marketplace.purchaseLicense{value: PRICE_50_IP}(1);
@@ -384,13 +458,20 @@ contract HealthDataMarketplaceTest is Test {
 
     // function testWithdrawPlatformFeesAsNative() public {
     //     // Generate platform fees through purchases
-    //     vm.prank(alice);
-    //     marketplace.registerHealthDataIP(
+    //     vm.startPrank(alice);
+    //     (address ipId, ) = marketplace.registerHealthDataIP(
     //         DATA_TYPE_SLEEP,
     //         IPFS_HASH_1,
     //         PRICE_50_IP,
     //         QUALITY_METRICS_1
     //     );
+    //     uint256 licenseTermsId = marketplace.ipToLicenseTermsId(ipId);
+    //     LICENSING_MODULE.attachLicenseTerms(
+    //         ipId,
+    //         address(PIL_TEMPLATE),
+    //         licenseTermsId
+    //     );
+    //     vm.stopPrank();
 
     //     vm.prank(charlie);
     //     marketplace.purchaseLicense{value: PRICE_50_IP}(1);
@@ -479,18 +560,30 @@ contract HealthDataMarketplaceTest is Test {
     //     // Alice registers two different data types
     //     vm.startPrank(alice);
 
-    //     marketplace.registerHealthDataIP(
+    //     (address ipId1, ) = marketplace.registerHealthDataIP(
     //         DATA_TYPE_SLEEP,
     //         IPFS_HASH_1,
     //         PRICE_50_IP,
     //         QUALITY_METRICS_1
     //     );
+    //     uint256 licenseTermsId1 = marketplace.ipToLicenseTermsId(ipId1);
+    //     LICENSING_MODULE.attachLicenseTerms(
+    //         ipId1,
+    //         address(PIL_TEMPLATE),
+    //         licenseTermsId1
+    //     );
 
-    //     marketplace.registerHealthDataIP(
+    //     (address ipId2, ) = marketplace.registerHealthDataIP(
     //         DATA_TYPE_HRV,
     //         IPFS_HASH_2,
     //         PRICE_100_IP,
     //         QUALITY_METRICS_2
+    //     );
+    //     uint256 licenseTermsId2 = marketplace.ipToLicenseTermsId(ipId2);
+    //     LICENSING_MODULE.attachLicenseTerms(
+    //         ipId2,
+    //         address(PIL_TEMPLATE),
+    //         licenseTermsId2
     //     );
 
     //     vm.stopPrank();
@@ -510,13 +603,20 @@ contract HealthDataMarketplaceTest is Test {
 
     // function testEmergencyWithdraw() public {
     //     // Generate some platform fees
-    //     vm.prank(alice);
-    //     marketplace.registerHealthDataIP(
+    //     vm.startPrank(alice);
+    //     (address ipId, ) = marketplace.registerHealthDataIP(
     //         DATA_TYPE_SLEEP,
     //         IPFS_HASH_1,
     //         PRICE_50_IP,
     //         QUALITY_METRICS_1
     //     );
+    //     uint256 licenseTermsId = marketplace.ipToLicenseTermsId(ipId);
+    //     LICENSING_MODULE.attachLicenseTerms(
+    //         ipId,
+    //         address(PIL_TEMPLATE),
+    //         licenseTermsId
+    //     );
+    //     vm.stopPrank();
 
     //     vm.prank(charlie);
     //     marketplace.purchaseLicense{value: PRICE_50_IP}(1);
@@ -565,13 +665,21 @@ contract HealthDataMarketplaceTest is Test {
 
     //     // 1. Alice registers health data
     //     console.log("1. Alice registering health data...");
-    //     vm.prank(alice);
+    //     vm.startPrank(alice);
     //     (address ipId, uint256 tokenId) = marketplace.registerHealthDataIP(
     //         DATA_TYPE_SLEEP,
     //         IPFS_HASH_1,
     //         PRICE_50_IP,
     //         QUALITY_METRICS_1
     //     );
+    //     uint256 licenseTermsId = marketplace.ipToLicenseTermsId(ipId);
+    //     LICENSING_MODULE.attachLicenseTerms(
+    //         ipId,
+    //         address(PIL_TEMPLATE),
+    //         licenseTermsId
+    //     );
+    //     vm.stopPrank();
+
     //     console.log("   IP ID:", ipId);
     //     console.log("   Token ID:", tokenId);
 
