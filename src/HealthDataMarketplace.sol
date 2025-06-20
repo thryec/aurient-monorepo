@@ -14,6 +14,8 @@ import {PILFlavors} from "@storyprotocol/core/lib/PILFlavors.sol";
 import {IRoyaltyModule} from "@storyprotocol/core/interfaces/modules/royalty/IRoyaltyModule.sol";
 import {IIpRoyaltyVault} from "@storyprotocol/core/interfaces/modules/royalty/policies/IIpRoyaltyVault.sol";
 import {IIPAccount} from "@storyprotocol/core/interfaces/IIPAccount.sol";
+import {LicenseToken} from "@storyprotocol/core/LicenseToken.sol";
+import {RoyaltyWorkflows} from "@storyprotocol/periphery/contracts/workflows/RoyaltyWorkflows.sol";
 import {console} from "forge-std/console.sol";
 
 /**
@@ -71,6 +73,7 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
     IRoyaltyModule public immutable royaltyModule;
     address public immutable royaltyPolicyLAP;
     IWIP public immutable WIP_TOKEN;
+    RoyaltyWorkflows public immutable royaltyWorkflows;
 
     bool public isCollectionInitialized;
     uint256 public platformFeePercent;
@@ -87,6 +90,7 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
     mapping(string => uint256[]) public listingsByDataType;
     mapping(address => HealthDataMetadata) public healthDataMetadata;
     mapping(address => uint256) public ipToLicenseTermsId;
+    mapping(address => uint256) public ipToLicenseTokenId;
 
     // Events
     event CollectionInitialized(address indexed collectionAddress);
@@ -224,7 +228,7 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
         // Register license terms with user-set price as minting fee
         uint256 licenseTermsId = pilTemplate.registerLicenseTerms(
             PILFlavors.commercialUse({
-                mintingFee: priceIP,
+                mintingFee: 0,
                 royaltyPolicy: royaltyPolicyLAP,
                 currencyToken: address(WIP_TOKEN)
             })
@@ -263,9 +267,6 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
         uint256 totalAmount = listing.priceIP;
         if (msg.value < totalAmount) revert InsufficientPayment();
 
-        // uint256 platformFee = (totalAmount * platformFeePercent) / 100;
-        // uint256 netAmount = totalAmount - platformFee;
-
         // Auto-wrap native $IP to WIP
         WIP_TOKEN.deposit{value: totalAmount}();
 
@@ -273,24 +274,33 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
         uint256 licenseTermsId = ipToLicenseTermsId[listing.ipId];
         require(licenseTermsId != 0, "License terms not found for this IP");
 
-        // Approve Story Protocol to spend WIP for the net amount
-        WIP_TOKEN.approve(address(licensingModule), totalAmount);
+        // Approve Story Protocol to spend WIP for the royalty payment
         WIP_TOKEN.approve(address(royaltyModule), totalAmount);
-        console.log("token approved for licensing module");
 
-        // Mint license token through Story Protocol
-        licensingModule.mintLicenseTokens({
+        // Mint license token through Story Protocol and transfer to buyer
+        uint256 licenseTokenId = licensingModule.mintLicenseTokens({
             licensorIpId: listing.ipId,
             licenseTemplate: address(pilTemplate),
             licenseTermsId: licenseTermsId,
             amount: 1,
-            receiver: msg.sender,
+            receiver: msg.sender, // Mint directly to buyer
             royaltyContext: "",
-            maxMintingFee: totalAmount,
+            maxMintingFee: 0,
             maxRevenueShare: 0
         });
 
-        console.log("license minted");
+        // Store the license token ID for this IP (for future reference)
+        ipToLicenseTokenId[listing.ipId] = licenseTokenId;
+
+        console.log("total amount:", totalAmount);
+
+        // Pay royalties to the IP owner (after vault is created by mintLicenseTokens)
+        royaltyModule.payRoyaltyOnBehalf({
+            receiverIpId: listing.ipId,
+            payerIpId: address(0),
+            token: address(WIP_TOKEN),
+            amount: totalAmount
+        });
 
         // Refund excess native $IP
         if (msg.value > totalAmount) {
@@ -316,7 +326,7 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
         address vault = royaltyModule.ipRoyaltyVaults(ipId);
         require(vault != address(0), "No vault deployed");
 
-        // Claim WIP tokens from vault
+        // Claim WIP tokens directly from vault
         uint256 amount = IIpRoyaltyVault(vault).claimRevenueOnBehalf(
             owner,
             address(WIP_TOKEN)
@@ -448,6 +458,13 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
      */
     function getLicenseTermsId(address ipId) external view returns (uint256) {
         return ipToLicenseTermsId[ipId];
+    }
+
+    /**
+     * @dev Get license token ID for a specific IP
+     */
+    function getLicenseTokenId(address ipId) external view returns (uint256) {
+        return ipToLicenseTokenId[ipId];
     }
 
     /**

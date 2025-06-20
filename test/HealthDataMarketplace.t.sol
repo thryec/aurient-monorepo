@@ -14,6 +14,7 @@ import {PILFlavors} from "@storyprotocol/core/lib/PILFlavors.sol";
 import {LicensingModule} from "@storyprotocol/core/modules/licensing/LicensingModule.sol";
 import {LicenseToken} from "@storyprotocol/core/LicenseToken.sol";
 import {RoyaltyModule} from "@storyprotocol/core/modules/royalty/RoyaltyModule.sol";
+import {IIpRoyaltyVault} from "@storyprotocol/core/interfaces/modules/royalty/policies/IIpRoyaltyVault.sol";
 import {IIPAccount} from "@storyprotocol/core/interfaces/IIPAccount.sol";
 import {IRegistrationWorkflows} from "@storyprotocol/periphery/contracts/interfaces/workflows/IRegistrationWorkflows.sol";
 import {ISPGNFT} from "@storyprotocol/periphery/contracts/interfaces/ISPGNFT.sol";
@@ -92,8 +93,6 @@ contract HealthDataMarketplaceTest is Test {
             platformFeePercent
         );
 
-        console.log("Marketplace deployed at:", address(marketplace));
-
         // Initialize collection
         marketplace.initializeHealthDataCollection();
     }
@@ -152,10 +151,6 @@ contract HealthDataMarketplaceTest is Test {
 
         // Verify license terms were created and stored
         assertGt(licenseTermsId, 0);
-
-        console.log("Registered IP ID:", ipId);
-        console.log("Token ID:", tokenId);
-        console.log("License Terms ID:", licenseTermsId);
     }
 
     function testRegisterMultipleHealthDataIPs() public {
@@ -241,108 +236,139 @@ contract HealthDataMarketplaceTest is Test {
         vm.prank(charlie);
 
         // check charlie's balance before purchase
-        console.log("Charlie's initial balance:", charlieInitialBalance);
         marketplace.purchaseLicense{value: PRICE_50_IP}(listingId);
 
         // Verify payment was processed
         assertEq(charlie.balance, charlieInitialBalance - PRICE_50_IP);
-        console.log("payment processed");
+
+        // Verify license token was transferred to Charlie
+        uint256 licenseTokenId = marketplace.getLicenseTokenId(ipId);
+        assertEq(LICENSE_TOKEN.balanceOf(charlie), 1);
+
+        // Verify royalty was paid to Alice (IP owner)
+        address vault = ROYALTY_MODULE.ipRoyaltyVaults(ipId);
+        assertTrue(vault != address(0), "Royalty vault should be deployed");
+
+        uint256 aliceEarnings = IIpRoyaltyVault(vault).claimableRevenue(
+            alice,
+            address(WIP_TOKEN)
+        );
+        console.log("aliceEarnings", aliceEarnings);
 
         // Verify listing was deactivated
         (, , , , , bool active, ) = marketplace.listings(listingId);
         assertFalse(active);
     }
 
-    // function testPurchaseLicenseWithOverpayment() public {
-    //     // Alice registers health data
-    //     vm.startPrank(alice);
-    //     (address ipId, ) = marketplace.registerHealthDataIP(
-    //         DATA_TYPE_SLEEP,
-    //         IPFS_HASH_1,
-    //         PRICE_50_IP,
-    //         QUALITY_METRICS_1
-    //     );
-    //     uint256 licenseTermsId = marketplace.ipToLicenseTermsId(ipId);
-    //     LICENSING_MODULE.attachLicenseTerms(
-    //         ipId,
-    //         address(PIL_TEMPLATE),
-    //         licenseTermsId
-    //     );
-    //     vm.stopPrank();
+    function testPurchaseLicenseWithOverpayment() public {
+        // Alice registers health data
+        vm.startPrank(alice);
+        (address ipId, ) = marketplace.registerHealthDataIP(
+            DATA_TYPE_SLEEP,
+            IPFS_HASH_1,
+            PRICE_50_IP,
+            QUALITY_METRICS_1
+        );
+        uint256 licenseTermsId = marketplace.ipToLicenseTermsId(ipId);
+        LICENSING_MODULE.attachLicenseTerms(
+            ipId,
+            address(PIL_TEMPLATE),
+            licenseTermsId
+        );
+        vm.stopPrank();
 
-    //     uint256 listingId = 1;
-    //     uint256 overpayment = 10 ether;
-    //     uint256 totalSent = PRICE_50_IP + overpayment;
+        uint256 listingId = 1;
+        uint256 overpayment = 10 ether;
+        uint256 totalSent = PRICE_50_IP + overpayment;
 
-    //     uint256 charlieInitialBalance = charlie.balance;
+        uint256 charlieInitialBalance = charlie.balance;
 
-    //     // Charlie overpays
-    //     vm.prank(charlie);
-    //     marketplace.purchaseLicense{value: totalSent}(listingId);
+        // Charlie overpays
+        vm.prank(charlie);
+        marketplace.purchaseLicense{value: totalSent}(listingId);
 
-    //     // Verify correct amount was charged (overpayment refunded)
-    //     assertEq(charlie.balance, charlieInitialBalance - PRICE_50_IP);
-    // }
+        // Verify correct amount was charged (overpayment refunded)
+        assertEq(charlie.balance, charlieInitialBalance - PRICE_50_IP);
+    }
 
-    // function testPurchaseLicenseInsufficientPayment() public {
-    //     // Alice registers health data
-    //     vm.startPrank(alice);
-    //     (address ipId, ) = marketplace.registerHealthDataIP(
-    //         DATA_TYPE_SLEEP,
-    //         IPFS_HASH_1,
-    //         PRICE_50_IP,
-    //         QUALITY_METRICS_1
-    //     );
-    //     uint256 licenseTermsId = marketplace.ipToLicenseTermsId(ipId);
-    //     LICENSING_MODULE.attachLicenseTerms(
-    //         ipId,
-    //         address(PIL_TEMPLATE),
-    //         licenseTermsId
-    //     );
-    //     vm.stopPrank();
+    function testPurchaseLicenseInsufficientPayment() public {
+        // Alice registers health data
+        vm.startPrank(alice);
+        (address ipId, ) = marketplace.registerHealthDataIP(
+            DATA_TYPE_SLEEP,
+            IPFS_HASH_1,
+            PRICE_50_IP,
+            QUALITY_METRICS_1
+        );
+        uint256 licenseTermsId = marketplace.ipToLicenseTermsId(ipId);
+        LICENSING_MODULE.attachLicenseTerms(
+            ipId,
+            address(PIL_TEMPLATE),
+            licenseTermsId
+        );
+        vm.stopPrank();
 
-    //     uint256 listingId = 1;
-    //     uint256 insufficientAmount = PRICE_50_IP - 1 ether;
+        uint256 listingId = 1;
+        uint256 insufficientAmount = PRICE_50_IP - 1 ether;
 
-    //     // Charlie tries to underpay
-    //     vm.prank(charlie);
-    //     vm.expectRevert(HealthDataMarketplace.InsufficientPayment.selector);
-    //     marketplace.purchaseLicense{value: insufficientAmount}(listingId);
-    // }
+        // Charlie tries to underpay
+        vm.prank(charlie);
+        vm.expectRevert(HealthDataMarketplace.InsufficientPayment.selector);
+        marketplace.purchaseLicense{value: insufficientAmount}(listingId);
+    }
 
-    // function testClaimEarnings() public {
-    //     // Alice registers and someone purchases
-    //     vm.startPrank(alice);
-    //     (address ipId, ) = marketplace.registerHealthDataIP(
-    //         DATA_TYPE_SLEEP,
-    //         IPFS_HASH_1,
-    //         PRICE_50_IP,
-    //         QUALITY_METRICS_1
-    //     );
-    //     uint256 licenseTermsId = marketplace.ipToLicenseTermsId(ipId);
-    //     LICENSING_MODULE.attachLicenseTerms(
-    //         ipId,
-    //         address(PIL_TEMPLATE),
-    //         licenseTermsId
-    //     );
-    //     vm.stopPrank();
+    function testClaimEarnings() public {
+        // Alice registers and someone purchases
+        vm.startPrank(alice);
+        (address ipId, ) = marketplace.registerHealthDataIP(
+            DATA_TYPE_SLEEP,
+            IPFS_HASH_1,
+            PRICE_50_IP,
+            QUALITY_METRICS_1
+        );
+        uint256 licenseTermsId = marketplace.ipToLicenseTermsId(ipId);
+        LICENSING_MODULE.attachLicenseTerms(
+            ipId,
+            address(PIL_TEMPLATE),
+            licenseTermsId
+        );
+        vm.stopPrank();
 
-    //     vm.prank(charlie);
-    //     marketplace.purchaseLicense{value: PRICE_50_IP}(1);
+        vm.prank(charlie);
+        marketplace.purchaseLicense{value: PRICE_50_IP}(1);
 
-    //     // Check if royalty vault was created
-    //     address vault = ROYALTY_MODULE.ipRoyaltyVaults(ipId);
-    //     console.log("Royalty vault address:", vault);
+        // Check if royalty vault was created
+        address vault = ROYALTY_MODULE.ipRoyaltyVaults(ipId);
+        console.log("Royalty vault address:", vault);
 
-    //     if (vault != address(0)) {
-    //         // Alice claims earnings
-    //         vm.prank(alice);
-    //         marketplace.claimEarnings(ipId);
-    //         console.log("Earnings claimed successfully");
-    //     } else {
-    //         console.log("No royalty vault deployed yet");
-    //     }
-    // }
+        // Check vault balance
+        uint256 vaultBalance = WIP_TOKEN.balanceOf(vault);
+        console.log("Vault balance:", vaultBalance);
+
+        // Check Alice's initial balance
+        uint256 aliceInitialBalance = WIP_TOKEN.balanceOf(alice);
+        console.log("Alice initial balance:", aliceInitialBalance);
+
+        // check alice's claimable revenue
+        uint256 aliceClaimableRevenue = IIpRoyaltyVault(vault).claimableRevenue(
+            alice,
+            address(WIP_TOKEN)
+        );
+        console.log("Alice claimable revenue:", aliceClaimableRevenue);
+
+        // Try to claim earnings - this should succeed
+        vm.prank(alice);
+        marketplace.claimEarnings(ipId);
+
+        // Verify Alice received the earnings
+        uint256 aliceFinalBalance = WIP_TOKEN.balanceOf(alice);
+        uint256 aliceEarnings = aliceFinalBalance - aliceInitialBalance;
+        console.log("Alice final balance:", aliceFinalBalance);
+        console.log("Alice earnings:", aliceEarnings);
+
+        // Assert that Alice received some earnings
+        assertGt(aliceEarnings, 0, "Alice should have received earnings");
+    }
 
     // function testClaimEarningsNotOwner() public {
     //     // Alice registers health data
