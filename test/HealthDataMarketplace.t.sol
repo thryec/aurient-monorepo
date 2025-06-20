@@ -345,20 +345,20 @@ contract HealthDataMarketplaceTest is Test {
         uint256 vaultBalance = WIP_TOKEN.balanceOf(vault);
         console.log("Vault balance:", vaultBalance);
 
-        // Check Alice's initial balance
+        // check ipid balance
+        uint256 ipidBalance = WIP_TOKEN.balanceOf(ipId);
+        console.log("IPID balance:", ipidBalance);
+
+        // alice initial balance
         uint256 aliceInitialBalance = WIP_TOKEN.balanceOf(alice);
         console.log("Alice initial balance:", aliceInitialBalance);
 
-        // check alice's claimable revenue
-        uint256 aliceClaimableRevenue = IIpRoyaltyVault(vault).claimableRevenue(
-            alice,
-            address(WIP_TOKEN)
-        );
-        console.log("Alice claimable revenue:", aliceClaimableRevenue);
-
-        // Try to claim earnings - this should succeed
         vm.prank(alice);
         marketplace.claimEarnings(ipId);
+
+        // check ipid balance
+        uint256 ipidBalanceAfter = WIP_TOKEN.balanceOf(ipId);
+        console.log("IPID balance after:", ipidBalanceAfter);
 
         // Verify Alice received the earnings
         uint256 aliceFinalBalance = WIP_TOKEN.balanceOf(alice);

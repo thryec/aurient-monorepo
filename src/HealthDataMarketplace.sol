@@ -328,7 +328,7 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
 
         // Claim WIP tokens directly from vault
         uint256 amount = IIpRoyaltyVault(vault).claimRevenueOnBehalf(
-            owner,
+            ipId,
             address(WIP_TOKEN)
         );
         if (amount == 0) revert NoEarningsToClaim();
