@@ -128,11 +128,11 @@ const PurchaseFlow = () => {
                 {/* Listing Details */}
                 <div className="mb-8">
                   <h1 className="text-3xl md:text-4xl font-light text-gray-900 mb-4">
-                    License Health Data IP
+                    Purchase health data license
                   </h1>
                   <p className="text-lg text-gray-700 mb-6">
-                    You're about to purchase a license for this health data IP
-                    asset registered on Story Protocol.
+                    You&apos;re about the purchase a license for these health
+                    insights on Story.
                   </p>
 
                   <div className="bg-gray-50 rounded-2xl p-6 mb-6">

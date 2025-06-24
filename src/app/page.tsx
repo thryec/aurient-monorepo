@@ -17,19 +17,34 @@ const AurientLanding = () => {
   const router = useRouter();
   const [scrollY, setScrollY] = useState(0);
   const [isVisible, setIsVisible] = useState(false);
+  // Floating dots state
+  const [dots, setDots] = React.useState<
+    {
+      left: string;
+      top: string;
+      animationDelay: string;
+      animationDuration: string;
+    }[]
+  >([]);
 
   useEffect(() => {
     const handleScroll = () => setScrollY(window.scrollY);
     window.addEventListener("scroll", handleScroll);
-
     setTimeout(() => setIsVisible(true), 100);
-
+    // Generate dots only on client
+    const newDots = Array.from({ length: 6 }).map(() => ({
+      left: `${Math.random() * 100}%`,
+      top: `${Math.random() * 100}%`,
+      animationDelay: `${Math.random() * 3}s`,
+      animationDuration: `${3 + Math.random() * 2}s`,
+    }));
+    setDots(newDots);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
   const stats = [
-    { label: "IP assets registered", value: "2,847", icon: Database },
-    { label: "total licenses sold", value: "18,392", icon: Users },
+    { label: "users' data protected", value: "2,847", icon: Database },
+    { label: "users have monetized their data", value: "18,392", icon: Users },
     { label: "earnings distributed", value: "$127k", icon: TrendingUp },
   ];
 
@@ -95,7 +110,7 @@ const AurientLanding = () => {
               Aurient
             </h1>
             <p className="text-xl md:text-2xl text-gray-700 font-light mb-16 tracking-wide">
-              AI WELLNESS COMPANION
+              Monetize your health data
             </p>
 
             <div className="max-w-3xl mx-auto mb-16">
@@ -118,14 +133,14 @@ const AurientLanding = () => {
                 onClick={handleRegisterClick}
                 className="group bg-gray-900/80 backdrop-blur-sm border border-gray-700 text-white px-8 py-4 rounded-full font-light text-lg hover:bg-gray-900 transition-all duration-300 flex items-center gap-3 min-w-[240px] justify-center"
               >
-                Register your health data
+                Protect your health data
                 <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
               </button>
               <button
                 onClick={handleLicenseClick}
                 className="group bg-white border border-gray-300 text-gray-900 px-8 py-4 rounded-full font-light text-lg hover:bg-gray-50 transition-all duration-300 flex items-center gap-3 min-w-[240px] justify-center"
               >
-                License health data
+                Data Marketplace
                 <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
               </button>
             </div>
@@ -250,37 +265,15 @@ const AurientLanding = () => {
       </footer>
 
       {/* Floating particles for subtle animation */}
-      {/* Hydration-safe: generate random positions/timings on client only */}
-      {(() => {
-        const [dots, setDots] = React.useState<
-          {
-            left: string;
-            top: string;
-            animationDelay: string;
-            animationDuration: string;
-          }[]
-        >([]);
-        React.useEffect(() => {
-          const newDots = Array.from({ length: 6 }).map(() => ({
-            left: `${Math.random() * 100}%`,
-            top: `${Math.random() * 100}%`,
-            animationDelay: `${Math.random() * 3}s`,
-            animationDuration: `${3 + Math.random() * 2}s`,
-          }));
-          setDots(newDots);
-        }, []);
-        return (
-          <div className="absolute inset-0 overflow-hidden pointer-events-none">
-            {dots.map((dot, i) => (
-              <div
-                key={i}
-                className="absolute w-2 h-2 bg-gray-900/20 rounded-full animate-pulse"
-                style={dot}
-              />
-            ))}
-          </div>
-        );
-      })()}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        {dots.map((dot, i) => (
+          <div
+            key={i}
+            className="absolute w-2 h-2 bg-gray-900/20 rounded-full animate-pulse"
+            style={dot}
+          />
+        ))}
+      </div>
     </div>
   );
 };

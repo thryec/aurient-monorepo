@@ -2,15 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import {
-  Search,
-  Filter,
-  Star,
-  Clock,
-  Database,
-  TrendingUp,
-  ExternalLink,
-} from "lucide-react";
+import { Search, Star, Database, ExternalLink } from "lucide-react";
 import { useWallet } from "@/hooks/useWallet";
 import WalletConnect from "@/components/wallet/WalletConnect";
 import { MOCK_MARKETPLACE_LISTINGS, DATA_TYPES } from "@/lib/constants";
@@ -18,7 +10,6 @@ import { MarketplaceListing } from "@/lib/types";
 
 const Marketplace = () => {
   const router = useRouter();
-  const { isConnected } = useWallet();
   const [listings, setListings] = useState<MarketplaceListing[]>(
     MOCK_MARKETPLACE_LISTINGS
   );
@@ -109,8 +100,8 @@ const Marketplace = () => {
               Health Data Marketplace
             </h1>
             <p className="text-lg text-gray-700 max-w-2xl mx-auto">
-              License premium health data IP assets for AI model training. All
-              data is anonymized and registered on Story Protocol.
+              License premium health insights for research and AI model
+              training. All data is anonymized and protected on Story.
             </p>
           </div>
 

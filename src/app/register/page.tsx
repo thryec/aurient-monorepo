@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight,
@@ -16,6 +16,8 @@ import WalletConnect from "@/components/wallet/WalletConnect";
 import { MOCK_HEALTH_DATA } from "@/lib/constants";
 import { TransactionState } from "@/lib/types";
 
+const SHOW_WHOOP = false; // Toggle to true to enable Whoop step
+
 const RegistrationFlow = () => {
   const router = useRouter();
   const { isConnected } = useWallet();
@@ -27,18 +29,24 @@ const RegistrationFlow = () => {
     isSuccess: false,
     isError: false,
   });
+  const [whoopConnected, setWhoopConnected] = useState(false);
 
   const steps = [
     { number: 1, title: "Connect Wallet", icon: Wallet },
-    { number: 2, title: "Preview Data", icon: Database },
-    { number: 3, title: "Set Price", icon: DollarSign },
-    { number: 4, title: "Register IP", icon: CheckCircle },
+    ...(SHOW_WHOOP
+      ? [{ number: 2, title: "Connect Whoop", icon: Loader2 }]
+      : []),
+    { number: SHOW_WHOOP ? 3 : 2, title: "Preview Data", icon: Database },
+    { number: SHOW_WHOOP ? 4 : 3, title: "Set Price", icon: DollarSign },
+    { number: SHOW_WHOOP ? 5 : 4, title: "Register IP", icon: CheckCircle },
   ];
 
   const selectedHealthData = MOCK_HEALTH_DATA[selectedDataIndex];
 
+  const maxStep = SHOW_WHOOP ? 5 : 4;
+
   const handleNextStep = () => {
-    if (currentStep < 4) {
+    if (currentStep < maxStep) {
       setCurrentStep(currentStep + 1);
     }
   };
@@ -76,6 +84,16 @@ const RegistrationFlow = () => {
     }
   };
 
+  useEffect(() => {
+    // Detect Whoop OAuth callback (e.g., ?whoop=connected or token in localStorage/session)
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      if (url.searchParams.get("whoop") === "connected") {
+        setWhoopConnected(true);
+      }
+    }
+  }, []);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-200 via-pink-200 via-purple-300 to-blue-500 text-gray-600">
       {/* Header */}
@@ -88,7 +106,7 @@ const RegistrationFlow = () => {
             Aurient
           </button>
           <div className="text-gray-700 font-light">
-            Step {currentStep} of 4
+            Step {currentStep} of {maxStep}
           </div>
         </div>
       </div>
@@ -163,15 +181,51 @@ const RegistrationFlow = () => {
               </div>
             )}
 
-            {/* Step 2: Preview Data */}
-            {currentStep === 2 && (
+            {/* Step 2: Connect Whoop */}
+            {SHOW_WHOOP && currentStep === 2 && (
+              <div className="text-center">
+                <h2 className="text-3xl md:text-4xl font-light text-gray-900 mb-6">
+                  Connect Your Whoop App
+                </h2>
+                <p className="text-lg text-gray-700 mb-12 max-w-2xl mx-auto">
+                  Connect your Whoop account to import your health data.
+                </p>
+                {whoopConnected ? (
+                  <>
+                    <div className="mb-8 text-green-600 font-medium">
+                      Whoop Connected!
+                    </div>
+                    <button
+                      className="bg-gray-900 text-white px-8 py-4 rounded-full font-light text-lg hover:bg-gray-800 transition-all duration-300"
+                      onClick={handleNextStep}
+                    >
+                      Continue
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    className="bg-black text-white px-8 py-4 rounded-full font-light text-lg hover:bg-gray-800 transition-all duration-300"
+                    onClick={async () => {
+                      const res = await fetch("/api/whoop/auth/start");
+                      const { url } = await res.json();
+                      window.location.href = url;
+                    }}
+                  >
+                    Connect Whoop
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Step 3: Preview Data */}
+            {currentStep === (SHOW_WHOOP ? 3 : 2) && (
               <div>
                 <h2 className="text-3xl md:text-4xl font-light text-gray-900 mb-6 text-center">
                   Preview Your Health Data
                 </h2>
                 <p className="text-lg text-gray-700 mb-8 text-center max-w-2xl mx-auto">
                   This is a preview of the processed, anonymized data that will
-                  be registered as your IP asset.
+                  be protected on Story
                 </p>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
@@ -261,15 +315,16 @@ const RegistrationFlow = () => {
               </div>
             )}
 
-            {/* Step 3: Set Price */}
-            {currentStep === 3 && (
+            {/* Step 4: Set Price */}
+            {currentStep === (SHOW_WHOOP ? 4 : 3) && (
               <div>
                 <h2 className="text-3xl md:text-4xl font-light text-gray-900 mb-6 text-center">
                   Set Your License Price
                 </h2>
                 <p className="text-lg text-gray-700 mb-8 text-center max-w-2xl mx-auto">
                   Set the price for AI companies to license your health data.
-                  You'll earn this amount each time someone licenses your data.
+                  You&apos;ll earn this amount each time someone licenses your
+                  data.
                 </p>
 
                 <div className="max-w-md mx-auto mb-8">
@@ -325,18 +380,18 @@ const RegistrationFlow = () => {
                     onClick={handleNextStep}
                     className="bg-gray-900 text-white px-6 py-3 rounded-full font-light hover:bg-gray-800 transition-all duration-300 flex items-center gap-2"
                   >
-                    Register IP Asset
+                    Protect your health data
                     <ArrowRight className="w-4 h-4" />
                   </button>
                 </div>
               </div>
             )}
 
-            {/* Step 4: Register IP */}
-            {currentStep === 4 && (
+            {/* Step 5: Register IP */}
+            {currentStep === (SHOW_WHOOP ? 5 : 4) && (
               <div className="text-center">
                 <h2 className="text-3xl md:text-4xl font-light text-gray-900 mb-6">
-                  Register IP Asset
+                  Protect your health data
                 </h2>
 
                 {!transaction.isPending &&
@@ -344,9 +399,9 @@ const RegistrationFlow = () => {
                   !transaction.isError && (
                     <div>
                       <p className="text-lg text-gray-700 mb-8 max-w-2xl mx-auto">
-                        Ready to register your health data as an IP asset on
-                        Story Protocol. This will create an NFT and register it
-                        as intellectual property.
+                        Register your health data on Story. This will protect
+                        your insights so that you can choose how your data is
+                        shared and monetized.
                       </p>
 
                       <div className="bg-gray-50 rounded-xl p-6 mb-8 text-left max-w-md mx-auto">
@@ -375,7 +430,7 @@ const RegistrationFlow = () => {
                         onClick={handleRegisterIP}
                         className="bg-gray-900 text-white px-8 py-4 rounded-full font-light text-lg hover:bg-gray-800 transition-all duration-300 flex items-center gap-3 mx-auto"
                       >
-                        Confirm Registration
+                        Confirm
                         <ArrowRight className="w-5 h-5" />
                       </button>
                     </div>
@@ -405,8 +460,8 @@ const RegistrationFlow = () => {
                       Registration Successful!
                     </h3>
                     <p className="text-gray-600 mb-6">
-                      Your health data has been successfully registered as an IP
-                      asset and listed on the marketplace.
+                      Your health data has been successfully protected,
+                      anonymized, and listed for monetization opportunities.
                     </p>
                     {transaction.txHash && (
                       <div className="bg-green-50 rounded-xl p-4 mb-6">

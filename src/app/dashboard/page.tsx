@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Plus,
@@ -8,7 +8,6 @@ import {
   DollarSign,
   Database,
   ExternalLink,
-  Download,
   Eye,
   Copy,
 } from "lucide-react";
@@ -19,7 +18,7 @@ import { IPAsset, UserEarnings } from "@/lib/types";
 
 const Dashboard = () => {
   const router = useRouter();
-  const { address, isConnected } = useWallet();
+  const { isConnected } = useWallet();
   const [assets, setAssets] = useState<IPAsset[]>(MOCK_USER_ASSETS);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -111,11 +110,10 @@ const Dashboard = () => {
           {/* Welcome Section */}
           <div className="mb-12">
             <h1 className="text-4xl md:text-5xl font-light text-gray-900 mb-4">
-              Your IP Portfolio
+              Your Health Portfolio
             </h1>
             <p className="text-lg text-gray-700 max-w-2xl">
-              Manage your registered health data IP assets and track your
-              earnings from AI licensing.
+              Manage your health data and track your earnings.
             </p>
           </div>
 

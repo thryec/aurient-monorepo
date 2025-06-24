@@ -23,18 +23,21 @@ const Header = () => {
           </a>
           <button
             onClick={() => router.push("/marketplace")}
-            className="hover:text-gray-900 transition-colors"
+            className="hover:text-gray-900 transition-colors hover:cursor-pointer"
           >
             marketplace
           </button>
-          <a href="#about" className="hover:text-gray-900 transition-colors">
-            about
-          </a>
           <button
             onClick={() => router.push("/insights")}
-            className="hover:text-gray-900 transition-colors"
+            className="hover:text-gray-900 transition-colors hover:cursor-pointer"
           >
             insights
+          </button>
+          <button
+            onClick={() => router.push("/dashboard")}
+            className="hover:text-gray-900 transition-colors hover:cursor-pointer"
+          >
+            dashboard
           </button>
         </div>
       </div>
