@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Header from "@/components/navigation/Header";
 import {
   ArrowRight,
   Shield,
@@ -78,30 +79,7 @@ const AurientLanding = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-200 via-pink-200 via-purple-300 to-blue-500 relative overflow-hidden">
       {/* Navigation */}
-      <nav className="relative z-10 p-6 md:p-8">
-        <div className="max-w-7xl mx-auto flex justify-between items-center">
-          <div className="text-gray-900 font-light text-xl tracking-wide">
-            Aurient
-          </div>
-          <div className="hidden md:flex space-x-8 text-gray-700 font-light">
-            <a
-              href="#how-it-works"
-              className="hover:text-gray-900 transition-colors"
-            >
-              how it works
-            </a>
-            <button
-              onClick={() => router.push("/marketplace")}
-              className="hover:text-gray-900 transition-colors"
-            >
-              marketplace
-            </button>
-            <a href="#about" className="hover:text-gray-900 transition-colors">
-              about
-            </a>
-          </div>
-        </div>
-      </nav>
+      <Header />
 
       {/* Hero Section */}
       <section className="relative z-10 px-6 md:px-8 pt-16 md:pt-24 pb-32">
