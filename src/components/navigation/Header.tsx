@@ -9,7 +9,7 @@ const Header = () => {
     <nav className="relative z-10 p-6 md:p-8">
       <div className="max-w-7xl mx-auto flex justify-between items-center">
         <div
-          className="text-gray-900 font-light text-xl tracking-wide"
+          className="text-gray-900 font-light text-xl tracking-wide hover:cursor-pointer"
           onClick={() => router.push("/")}
         >
           Aurient

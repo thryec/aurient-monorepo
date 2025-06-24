@@ -250,20 +250,37 @@ const AurientLanding = () => {
       </footer>
 
       {/* Floating particles for subtle animation */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        {[...Array(6)].map((_, i) => (
-          <div
-            key={i}
-            className="absolute w-2 h-2 bg-gray-900/20 rounded-full animate-pulse"
-            style={{
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
-              animationDelay: `${Math.random() * 3}s`,
-              animationDuration: `${3 + Math.random() * 2}s`,
-            }}
-          />
-        ))}
-      </div>
+      {/* Hydration-safe: generate random positions/timings on client only */}
+      {(() => {
+        const [dots, setDots] = React.useState<
+          {
+            left: string;
+            top: string;
+            animationDelay: string;
+            animationDuration: string;
+          }[]
+        >([]);
+        React.useEffect(() => {
+          const newDots = Array.from({ length: 6 }).map(() => ({
+            left: `${Math.random() * 100}%`,
+            top: `${Math.random() * 100}%`,
+            animationDelay: `${Math.random() * 3}s`,
+            animationDuration: `${3 + Math.random() * 2}s`,
+          }));
+          setDots(newDots);
+        }, []);
+        return (
+          <div className="absolute inset-0 overflow-hidden pointer-events-none">
+            {dots.map((dot, i) => (
+              <div
+                key={i}
+                className="absolute w-2 h-2 bg-gray-900/20 rounded-full animate-pulse"
+                style={dot}
+              />
+            ))}
+          </div>
+        );
+      })()}
     </div>
   );
 };
