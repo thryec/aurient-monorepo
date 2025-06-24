@@ -16,6 +16,8 @@ import {IIpRoyaltyVault} from "@storyprotocol/core/interfaces/modules/royalty/po
 import {IIPAccount} from "@storyprotocol/core/interfaces/IIPAccount.sol";
 import {LicenseToken} from "@storyprotocol/core/LicenseToken.sol";
 import {RoyaltyWorkflows} from "@storyprotocol/periphery/contracts/workflows/RoyaltyWorkflows.sol";
+import {Licensing} from "@storyprotocol/core/lib/Licensing.sol";
+import {ILicenseAttachmentWorkflows} from "@storyprotocol/periphery/contracts/interfaces/workflows/ILicenseAttachmentWorkflows.sol";
 import {console} from "forge-std/console.sol";
 
 /**
@@ -74,6 +76,7 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
     address public immutable royaltyPolicyLAP;
     IWIP public immutable WIP_TOKEN;
     RoyaltyWorkflows public immutable royaltyWorkflows;
+    ILicenseAttachmentWorkflows public immutable licenseAttachmentWorkflows;
 
     bool public isCollectionInitialized;
     uint256 public platformFeePercent;
@@ -143,6 +146,7 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
         address _pilTemplate,
         address _royaltyModule,
         address _royaltyPolicyLAP,
+        address _licenseAttachmentWorkflows,
         address _wipToken,
         uint256 _platformFeePercent
     ) Ownable(msg.sender) {
@@ -151,12 +155,16 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
         if (_pilTemplate == address(0)) revert ZeroAddress();
         if (_royaltyModule == address(0)) revert ZeroAddress();
         if (_royaltyPolicyLAP == address(0)) revert ZeroAddress();
+        if (_licenseAttachmentWorkflows == address(0)) revert ZeroAddress();
         if (_wipToken == address(0)) revert ZeroAddress();
 
         registrationWorkflows = IRegistrationWorkflows(_registrationWorkflows);
         licensingModule = ILicensingModule(_licensingModule);
         pilTemplate = IPILicenseTemplate(_pilTemplate);
         royaltyModule = IRoyaltyModule(_royaltyModule);
+        licenseAttachmentWorkflows = ILicenseAttachmentWorkflows(
+            _licenseAttachmentWorkflows
+        );
         royaltyPolicyLAP = _royaltyPolicyLAP;
         WIP_TOKEN = IWIP(_wipToken);
         platformFeePercent = _platformFeePercent;
@@ -204,7 +212,7 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
         string memory ipfsHash,
         uint256 priceIP,
         string memory qualityMetrics
-    ) external returns (address ipId, uint256 tokenId) {
+    ) external returns (address ipId, uint256 tokenId, uint256 licenseTermsId) {
         ensureCollectionSetup();
 
         if (bytes(dataType).length == 0) revert InvalidDataType();
@@ -217,25 +225,45 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
             qualityMetrics
         );
 
-        // mint NFT + register as IP
-        (ipId, tokenId) = registrationWorkflows.mintAndRegisterIp(
-            address(healthDataCollection),
-            msg.sender,
-            metadata,
-            true // makeIPDerivative
-        );
-
-        // Register license terms with user-set price as minting fee
-        uint256 licenseTermsId = pilTemplate.registerLicenseTerms(
-            PILFlavors.commercialUse({
+        WorkflowStructs.LicenseTermsData[]
+            memory licenseTermsData = new WorkflowStructs.LicenseTermsData[](1);
+        licenseTermsData[0] = WorkflowStructs.LicenseTermsData({
+            terms: PILFlavors.commercialRemix({
                 mintingFee: 0,
-                royaltyPolicy: royaltyPolicyLAP,
-                currencyToken: address(WIP_TOKEN)
+                commercialRevShare: 1e7, // 10%
+                royaltyPolicy: 0x9156e603C949481883B1d3355c6f1132D191fC41, // LRP
+                currencyToken: 0x1514000000000000000000000000000000000000 // WIP
+            }),
+            licensingConfig: Licensing.LicensingConfig({
+                isSet: false,
+                mintingFee: 0,
+                licensingHook: address(0),
+                hookData: "",
+                commercialRevShare: 1e7, // 10%
+                disabled: false,
+                expectMinimumGroupRewardShare: 0,
+                expectGroupRewardPool: address(0)
             })
-        );
+        });
+
+        (
+            address ipId,
+            uint256 ipNftTokenId,
+            uint256[] memory licenseTermsIds
+        ) = licenseAttachmentWorkflows.mintAndRegisterIpAndAttachPILTerms(
+                address(healthDataCollection),
+                msg.sender,
+                metadata,
+                licenseTermsData,
+                true // makeIPDerivative
+            );
+
+        console.log("ipId:", ipId);
+        console.log("ipNftTokenId:", ipNftTokenId);
+        console.log("licenseTermsIds:", licenseTermsIds[0]);
 
         // Store the license terms ID for this IP
-        ipToLicenseTermsId[ipId] = licenseTermsId;
+        ipToLicenseTermsId[ipId] = licenseTermsIds[0];
 
         // Store metadata for future reference
         healthDataMetadata[ipId] = HealthDataMetadata({
@@ -252,7 +280,7 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
 
         emit HealthDataRegistered(msg.sender, ipId, tokenId, dataType, priceIP);
 
-        return (ipId, tokenId);
+        return (ipId, tokenId, licenseTermsIds[0]);
     }
 
     /**
@@ -276,6 +304,16 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
 
         // Approve Story Protocol to spend WIP for the royalty payment
         WIP_TOKEN.approve(address(royaltyModule), totalAmount);
+        // check that royaltyModule has enough allowance
+        uint256 allowance = WIP_TOKEN.allowance(
+            address(this),
+            address(royaltyModule)
+        );
+        console.log("allowance:", allowance);
+
+        // WIP_TOKEN.approve(address(licensingModule), totalAmount);
+
+        console.log("total amount:", totalAmount);
 
         // Mint license token through Story Protocol and transfer to buyer
         uint256 licenseTokenId = licensingModule.mintLicenseTokens({
@@ -291,8 +329,6 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
 
         // Store the license token ID for this IP (for future reference)
         ipToLicenseTokenId[listing.ipId] = licenseTokenId;
-
-        console.log("total amount:", totalAmount);
 
         // Pay royalties to the IP owner (after vault is created by mintLicenseTokens)
         royaltyModule.payRoyaltyOnBehalf({
