@@ -124,11 +124,7 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
         address indexed owner,
         uint256 amount
     );
-    event PlatformFeesWithdrawn(
-        address indexed owner,
-        uint256 amount,
-        bool asNative
-    );
+    event PlatformFeesWithdrawn(address indexed owner, uint256 amount);
 
     /**
      * @dev Constructor
@@ -258,10 +254,6 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
                 true // makeIPDerivative
             );
 
-        console.log("ipId:", ipId);
-        console.log("ipNftTokenId:", ipNftTokenId);
-        console.log("licenseTermsIds:", licenseTermsIds[0]);
-
         // Store the license terms ID for this IP
         ipToLicenseTermsId[ipId] = licenseTermsIds[0];
 
@@ -295,25 +287,20 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
         uint256 totalAmount = listing.priceIP;
         if (msg.value < totalAmount) revert InsufficientPayment();
 
-        // Auto-wrap native $IP to WIP
-        WIP_TOKEN.deposit{value: totalAmount}();
+        // Calculate platform fee
+        uint256 platformFee = (totalAmount * platformFeePercent) / 100;
+        uint256 royaltyAmount = totalAmount - platformFee;
+
+        // Platform fee is kept as native tokens in the contract
+        // Only wrap the royalty amount to WIP
+        WIP_TOKEN.deposit{value: royaltyAmount}();
 
         // Get license terms ID
         uint256 licenseTermsId = ipToLicenseTermsId[listing.ipId];
         require(licenseTermsId != 0, "License terms not found for this IP");
 
         // Approve Story Protocol to spend WIP for the royalty payment
-        WIP_TOKEN.approve(address(royaltyModule), totalAmount);
-        // check that royaltyModule has enough allowance
-        uint256 allowance = WIP_TOKEN.allowance(
-            address(this),
-            address(royaltyModule)
-        );
-        console.log("allowance:", allowance);
-
-        // WIP_TOKEN.approve(address(licensingModule), totalAmount);
-
-        console.log("total amount:", totalAmount);
+        WIP_TOKEN.approve(address(royaltyModule), royaltyAmount);
 
         // Mint license token through Story Protocol and transfer to buyer
         uint256 licenseTokenId = licensingModule.mintLicenseTokens({
@@ -331,11 +318,12 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
         ipToLicenseTokenId[listing.ipId] = licenseTokenId;
 
         // Pay royalties to the IP owner (after vault is created by mintLicenseTokens)
+        // Only pay the royalty amount (total - platform fee)
         royaltyModule.payRoyaltyOnBehalf({
             receiverIpId: listing.ipId,
             payerIpId: address(0),
             token: address(WIP_TOKEN),
-            amount: totalAmount
+            amount: royaltyAmount
         });
 
         // Refund excess native $IP
@@ -387,24 +375,15 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
 
     /**
      * @dev Withdraw platform fees (only owner)
-     * @param asNative Whether to unwrap WIP to native $IP
      */
-    function withdrawPlatformFees(
-        bool asNative
-    ) external onlyOwner nonReentrant {
-        uint256 balance = WIP_TOKEN.balanceOf(address(this));
+    function withdrawPlatformFees() external onlyOwner nonReentrant {
+        uint256 balance = address(this).balance;
         require(balance > 0, "No fees to withdraw");
 
-        if (asNative) {
-            // Unwrap WIP to native $IP
-            WIP_TOKEN.withdraw(balance);
-            payable(owner()).transfer(balance);
-        } else {
-            // Transfer WIP tokens directly
-            WIP_TOKEN.transfer(owner(), balance);
-        }
+        // Transfer native $IP directly
+        payable(msg.sender).transfer(balance);
 
-        emit PlatformFeesWithdrawn(owner(), balance, asNative);
+        emit PlatformFeesWithdrawn(msg.sender, balance);
     }
 
     /**
