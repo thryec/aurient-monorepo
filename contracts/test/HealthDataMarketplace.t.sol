@@ -31,7 +31,12 @@ interface IWIP {
 
 // Run this test with:
 // forge test --fork-url https://aeneid.storyrpc.io/ --match-path test/HealthDataMarketplace.t.sol
-contract HealthDataMarketplaceTest is Test {
+
+// ============================================================================
+// STATE ZERO: Basic Setup (Contract Deployed, Collection Initialized)
+// ============================================================================
+
+abstract contract StateZero is Test {
     // Test addresses
     address internal alice = address(0xa11ce);
     address internal bob = address(0xb0b);
@@ -76,7 +81,7 @@ contract HealthDataMarketplaceTest is Test {
     uint256 constant PRICE_50_IP = 50 ether;
     uint256 constant PRICE_100_IP = 100 ether;
 
-    function setUp() public {
+    function setUp() public virtual {
         // Mock IPGraph for testing (required by Story Protocol)
         vm.etch(address(0x0101), address(new MockIPGraph()).code);
 
@@ -84,6 +89,11 @@ contract HealthDataMarketplaceTest is Test {
         vm.deal(alice, 1000 ether);
         vm.deal(bob, 1000 ether);
         vm.deal(charlie, 1000 ether);
+
+        // Label addresses for better debugging
+        vm.label(alice, "alice");
+        vm.label(bob, "bob");
+        vm.label(charlie, "charlie");
 
         // Deploy HealthDataMarketplace
         marketplace = new HealthDataMarketplace(
@@ -100,7 +110,9 @@ contract HealthDataMarketplaceTest is Test {
         // Initialize collection
         marketplace.initializeHealthDataCollection();
     }
+}
 
+contract StateZeroTest is StateZero {
     function testInitialState() public view {
         assertEq(marketplace.platformFeePercent(), platformFeePercent);
         assertTrue(marketplace.isCollectionSetup());
@@ -108,344 +120,28 @@ contract HealthDataMarketplaceTest is Test {
         assertEq(address(marketplace.WIP_TOKEN()), address(WIP_TOKEN));
     }
 
-    function testRegisterHealthDataIP() public {
+    function testInvalidRegistrationParameters() public {
         vm.startPrank(alice);
 
-        // Register health data IP
-        (address ipId, uint256 tokenId, uint256 licenseTermsId) = marketplace
-            .registerHealthDataIP(
-                DATA_TYPE_SLEEP,
-                IPFS_HASH_1,
-                PRICE_50_IP,
-                QUALITY_METRICS_1
-            );
-
-        vm.stopPrank();
-
-        // Verify IP was registered
-        assertTrue(IP_ASSET_REGISTRY.isRegistered(ipId));
-
-        // Verify listing was created
-        (
-            uint256 listingId,
-            address seller,
-            address listedIpId,
-            uint256 price,
-            string memory dataType,
-            bool active,
-            uint256 createdAt
-        ) = marketplace.listings(1);
-
-        assertEq(listingId, 1);
-        assertEq(seller, alice);
-        assertEq(listedIpId, ipId);
-        assertEq(price, PRICE_50_IP);
-        assertEq(dataType, DATA_TYPE_SLEEP);
-        assertTrue(active);
-        assertGt(createdAt, 0);
-
-        // Verify license terms were created and stored
-        assertGt(licenseTermsId, 0);
-    }
-
-    function testRegisterMultipleHealthDataIPs() public {
-        // Alice registers sleep data
-        vm.startPrank(alice);
-        (address ipId1, uint256 tokenId1, uint256 licenseTermsId1) = marketplace
-            .registerHealthDataIP(
-                DATA_TYPE_SLEEP,
-                IPFS_HASH_1,
-                PRICE_50_IP,
-                QUALITY_METRICS_1
-            );
-
-        vm.stopPrank();
-
-        // Bob registers HRV data
-        vm.startPrank(bob);
-        (address ipId2, uint256 tokenId2, uint256 licenseTermsId2) = marketplace
-            .registerHealthDataIP(
-                DATA_TYPE_HRV,
-                IPFS_HASH_2,
-                PRICE_100_IP,
-                QUALITY_METRICS_2
-            );
-
-        vm.stopPrank();
-
-        // Verify both are registered
-        assertTrue(IP_ASSET_REGISTRY.isRegistered(ipId1));
-        assertTrue(IP_ASSET_REGISTRY.isRegistered(ipId2));
-
-        // Check active listings
-        HealthDataMarketplace.Listing[] memory activeListings = marketplace
-            .getActiveListings();
-        assertEq(activeListings.length, 2);
-
-        // Check listings by data type
-        HealthDataMarketplace.Listing[] memory sleepListings = marketplace
-            .getListingsByDataType(DATA_TYPE_SLEEP);
-        assertEq(sleepListings.length, 1);
-        assertEq(sleepListings[0].seller, alice);
-
-        HealthDataMarketplace.Listing[] memory hrvListings = marketplace
-            .getListingsByDataType(DATA_TYPE_HRV);
-        assertEq(hrvListings.length, 1);
-        assertEq(hrvListings[0].seller, bob);
-    }
-
-    function testPurchaseLicense() public {
-        // Alice registers health data
-        vm.startPrank(alice);
-        (address ipId, uint256 tokenId, uint256 licenseTermsId) = marketplace
-            .registerHealthDataIP(
-                DATA_TYPE_SLEEP,
-                IPFS_HASH_1,
-                PRICE_50_IP,
-                QUALITY_METRICS_1
-            );
-
-        vm.stopPrank();
-
-        uint256 listingId = 1;
-
-        // Check initial balances
-        uint256 charlieInitialBalance = charlie.balance;
-        uint256 marketplaceInitialBalance = address(marketplace).balance;
-        uint256 marketplaceInitialWIP = WIP_TOKEN.balanceOf(
-            address(marketplace)
-        );
-
-        // Calculate expected platform fee and royalty amount
-        uint256 expectedPlatformFee = (PRICE_50_IP * platformFeePercent) / 100;
-        uint256 expectedRoyaltyAmount = PRICE_50_IP - expectedPlatformFee;
-
-        // Charlie purchases license
-        vm.prank(charlie);
-
-        // check charlie's balance before purchase
-        marketplace.purchaseLicense{value: PRICE_50_IP}(listingId);
-
-        // Verify payment was processed
-        assertEq(charlie.balance, charlieInitialBalance - PRICE_50_IP);
-
-        // Verify platform fee is kept as native tokens in contract
-        assertEq(
-            address(marketplace).balance,
-            marketplaceInitialBalance + expectedPlatformFee
-        );
-
-        // Verify license token was transferred to Charlie
-        uint256 licenseTokenId = marketplace.getLicenseTokenId(ipId);
-        assertEq(LICENSE_TOKEN.balanceOf(charlie), 1);
-
-        // Verify royalty was paid to Alice's ipId (only the royalty amount, not the full price)
-        address vault = ROYALTY_MODULE.ipRoyaltyVaults(ipId);
-        assertTrue(vault != address(0), "Royalty vault should be deployed");
-
-        uint256 aliceEarnings = IIpRoyaltyVault(vault).claimableRevenue(
-            ipId,
-            address(WIP_TOKEN)
-        );
-
-        // check alice earnings equal royalty amount (not total price)
-        assertEq(aliceEarnings, expectedRoyaltyAmount);
-
-        // Verify listing was deactivated
-        (, , , , , bool active, ) = marketplace.listings(listingId);
-        assertFalse(active);
-    }
-
-    function testPurchaseLicenseWithOverpayment() public {
-        // Alice registers health data
-        vm.startPrank(alice);
-        (address ipId, uint256 tokenId, uint256 licenseTermsId) = marketplace
-            .registerHealthDataIP(
-                DATA_TYPE_SLEEP,
-                IPFS_HASH_1,
-                PRICE_50_IP,
-                QUALITY_METRICS_1
-            );
-        vm.stopPrank();
-
-        uint256 listingId = 1;
-        uint256 overpayment = 10 ether;
-        uint256 totalSent = PRICE_50_IP + overpayment;
-
-        uint256 charlieInitialBalance = charlie.balance;
-
-        // Charlie overpays
-        vm.prank(charlie);
-        marketplace.purchaseLicense{value: totalSent}(listingId);
-
-        // Verify correct amount was charged (overpayment refunded)
-        assertEq(charlie.balance, charlieInitialBalance - PRICE_50_IP);
-    }
-
-    function testPurchaseLicenseInsufficientPayment() public {
-        // Alice registers health data
-        vm.startPrank(alice);
-        (address ipId, uint256 tokenId, uint256 licenseTermsId) = marketplace
-            .registerHealthDataIP(
-                DATA_TYPE_SLEEP,
-                IPFS_HASH_1,
-                PRICE_50_IP,
-                QUALITY_METRICS_1
-            );
-
-        vm.stopPrank();
-
-        uint256 listingId = 1;
-        uint256 insufficientAmount = PRICE_50_IP - 1 ether;
-
-        // Charlie tries to underpay
-        vm.prank(charlie);
-        vm.expectRevert(HealthDataMarketplace.InsufficientPayment.selector);
-        marketplace.purchaseLicense{value: insufficientAmount}(listingId);
-    }
-
-    function testClaimEarnings() public {
-        // Alice registers and someone purchases
-        vm.startPrank(alice);
-        (address ipId, , ) = marketplace.registerHealthDataIP(
-            DATA_TYPE_SLEEP,
+        // Test invalid data type
+        vm.expectRevert(HealthDataMarketplace.InvalidDataType.selector);
+        marketplace.registerHealthDataIP(
+            "",
             IPFS_HASH_1,
             PRICE_50_IP,
             QUALITY_METRICS_1
         );
-        vm.stopPrank();
 
-        vm.prank(charlie);
-        marketplace.purchaseLicense{value: PRICE_50_IP}(1);
-
-        // Calculate expected royalty amount (total - platform fee)
-        uint256 expectedRoyaltyAmount = PRICE_50_IP -
-            ((PRICE_50_IP * platformFeePercent) / 100);
-
-        // Check vault balance before claiming
-        address vault = ROYALTY_MODULE.ipRoyaltyVaults(ipId);
-        uint256 vaultBalanceBefore = WIP_TOKEN.balanceOf(vault);
-        uint256 ipAccountBalanceBefore = WIP_TOKEN.balanceOf(ipId);
-
-        vm.prank(alice);
-        marketplace.claimEarnings(ipId);
-
-        // Check that earnings were claimed to IPAccount (only royalty amount)
-        uint256 ipAccountBalanceAfter = WIP_TOKEN.balanceOf(ipId);
-        uint256 claimedAmount = ipAccountBalanceAfter - ipAccountBalanceBefore;
-        assertEq(
-            claimedAmount,
-            expectedRoyaltyAmount,
-            "IPAccount should have received royalty amount"
-        );
-    }
-
-    function testClaimEarningsNotOwner() public {
-        // Alice registers health data
-        vm.startPrank(alice);
-        (address ipId, , ) = marketplace.registerHealthDataIP(
+        // Test invalid price
+        vm.expectRevert(HealthDataMarketplace.InvalidPrice.selector);
+        marketplace.registerHealthDataIP(
             DATA_TYPE_SLEEP,
             IPFS_HASH_1,
-            PRICE_50_IP,
+            0,
             QUALITY_METRICS_1
         );
+
         vm.stopPrank();
-
-        // Bob tries to claim Alice's earnings
-        vm.prank(bob);
-        vm.expectRevert(HealthDataMarketplace.NotIPOwner.selector);
-        marketplace.claimEarnings(ipId);
-    }
-
-    function testRemoveListing() public {
-        // Alice registers health data
-        vm.startPrank(alice);
-        (address ipId, , ) = marketplace.registerHealthDataIP(
-            DATA_TYPE_SLEEP,
-            IPFS_HASH_1,
-            PRICE_50_IP,
-            QUALITY_METRICS_1
-        );
-        vm.stopPrank();
-
-        uint256 listingId = 1;
-
-        // Alice removes her listing
-        vm.prank(alice);
-        marketplace.removeListing(listingId);
-
-        // Verify listing is deactivated
-        (, , , , , bool active, ) = marketplace.listings(listingId);
-        assertFalse(active);
-
-        // Verify no active listings
-        HealthDataMarketplace.Listing[] memory activeListings = marketplace
-            .getActiveListings();
-        assertEq(activeListings.length, 0);
-    }
-
-    function testRemoveListingNotOwner() public {
-        // Alice registers health data
-        vm.startPrank(alice);
-        (address ipId, , ) = marketplace.registerHealthDataIP(
-            DATA_TYPE_SLEEP,
-            IPFS_HASH_1,
-            PRICE_50_IP,
-            QUALITY_METRICS_1
-        );
-        vm.stopPrank();
-
-        uint256 listingId = 1;
-
-        // Bob tries to remove Alice's listing
-        vm.prank(bob);
-        vm.expectRevert(HealthDataMarketplace.NotListingOwner.selector);
-        marketplace.removeListing(listingId);
-    }
-
-    function testWithdrawPlatformFees() public {
-        // Generate platform fees through purchases
-        vm.startPrank(alice);
-        (address ipId, , ) = marketplace.registerHealthDataIP(
-            DATA_TYPE_SLEEP,
-            IPFS_HASH_1,
-            PRICE_50_IP,
-            QUALITY_METRICS_1
-        );
-        vm.stopPrank();
-
-        vm.prank(charlie);
-        marketplace.purchaseLicense{value: PRICE_50_IP}(1);
-
-        uint256 expectedFee = (PRICE_50_IP * platformFeePercent) / 100;
-        address owner = marketplace.owner();
-        uint256 ownerInitialBalance = owner.balance;
-
-        marketplace.withdrawPlatformFees();
-
-        assertEq(owner.balance, ownerInitialBalance + expectedFee);
-        assertEq(address(marketplace).balance, 0);
-    }
-
-    receive() external payable {
-        // Handles plain Ether transfers
-    }
-
-    fallback() external payable {
-        // Handles calls with data or when receive() doesn't exist
-    }
-
-    function testSetPlatformFee() public {
-        uint256 newFee = 10;
-
-        vm.expectEmit(true, true, true, true);
-        emit HealthDataMarketplace.PlatformFeeUpdated(
-            platformFeePercent,
-            newFee
-        );
-
-        marketplace.setPlatformFee(newFee);
-        assertEq(marketplace.platformFeePercent(), newFee);
     }
 
     function testOnlyOwnerFunctions() public {
@@ -480,94 +176,17 @@ contract HealthDataMarketplaceTest is Test {
         marketplace.emergencyWithdraw();
     }
 
-    function testInvalidRegistrationParameters() public {
-        vm.startPrank(alice);
+    function testSetPlatformFee() public {
+        uint256 newFee = 15;
 
-        // Test invalid data type
-        vm.expectRevert(HealthDataMarketplace.InvalidDataType.selector);
-        marketplace.registerHealthDataIP(
-            "",
-            IPFS_HASH_1,
-            PRICE_50_IP,
-            QUALITY_METRICS_1
+        vm.expectEmit(true, true, true, true);
+        emit HealthDataMarketplace.PlatformFeeUpdated(
+            platformFeePercent,
+            newFee
         );
 
-        // Test invalid price
-        vm.expectRevert(HealthDataMarketplace.InvalidPrice.selector);
-        marketplace.registerHealthDataIP(
-            DATA_TYPE_SLEEP,
-            IPFS_HASH_1,
-            0,
-            QUALITY_METRICS_1
-        );
-
-        vm.stopPrank();
-    }
-
-    function testGetUserListings() public {
-        // Alice registers two different data types
-        vm.startPrank(alice);
-
-        (address ipId1, , ) = marketplace.registerHealthDataIP(
-            DATA_TYPE_SLEEP,
-            IPFS_HASH_1,
-            PRICE_50_IP,
-            QUALITY_METRICS_1
-        );
-
-        (address ipId2, , ) = marketplace.registerHealthDataIP(
-            DATA_TYPE_HRV,
-            IPFS_HASH_2,
-            PRICE_100_IP,
-            QUALITY_METRICS_2
-        );
-
-        vm.stopPrank();
-
-        // Check Alice's listings
-        HealthDataMarketplace.Listing[] memory aliceListings = marketplace
-            .getUserListings(alice);
-        assertEq(aliceListings.length, 2);
-        assertEq(aliceListings[0].seller, alice);
-        assertEq(aliceListings[1].seller, alice);
-
-        // Check Bob has no listings
-        HealthDataMarketplace.Listing[] memory bobListings = marketplace
-            .getUserListings(bob);
-        assertEq(bobListings.length, 0);
-    }
-
-    function testEmergencyWithdraw() public {
-        // Generate some platform fees
-        vm.startPrank(alice);
-        (address ipId, , ) = marketplace.registerHealthDataIP(
-            DATA_TYPE_SLEEP,
-            IPFS_HASH_1,
-            PRICE_50_IP,
-            QUALITY_METRICS_1
-        );
-        vm.stopPrank();
-
-        vm.prank(charlie);
-        marketplace.purchaseLicense{value: PRICE_50_IP}(1);
-
-        // Send some native $IP to contract
-        vm.deal(address(marketplace), 1 ether);
-
-        address owner = marketplace.owner();
-        uint256 ownerInitialWIP = WIP_TOKEN.balanceOf(owner);
-        uint256 ownerInitialBalance = owner.balance;
-        uint256 marketplaceWIP = WIP_TOKEN.balanceOf(address(marketplace));
-        uint256 marketplaceBalance = address(marketplace).balance;
-
-        // Emergency withdraw
-        marketplace.emergencyWithdraw();
-
-        // Verify all funds transferred to owner
-        assertEq(WIP_TOKEN.balanceOf(owner), ownerInitialWIP + marketplaceWIP);
-        assertEq(owner.balance, ownerInitialBalance + marketplaceBalance);
-        assertEq(WIP_TOKEN.balanceOf(address(marketplace)), 0);
-        assertEq(address(marketplace).balance, 0);
+        marketplace.setPlatformFee(newFee);
+        assertEq(marketplace.platformFeePercent(), newFee);
     }
 
     function testWIPIntegration() public {
@@ -590,65 +209,458 @@ contract HealthDataMarketplaceTest is Test {
         assertEq(WIP_TOKEN.balanceOf(alice), aliceInitialWIP);
     }
 
-    function testCompleteUserJourney() public {
-        console.log("=== Starting Complete User Journey Test ===");
+    // Allow test contract to receive ether
+    receive() external payable {}
 
-        // 1. Alice registers health data
-        console.log("1. Alice registering health data...");
+    fallback() external payable {}
+}
+
+// ============================================================================
+// STATE ONE: Health Data Registered (IP Created, Listing Active)
+// ============================================================================
+
+abstract contract StateOne is StateZero {
+    address internal ipId;
+    uint256 internal listingId = 1;
+
+    function setUp() public virtual override {
+        super.setUp();
+
+        // Register health data IP
         vm.startPrank(alice);
-        (address ipId, uint256 tokenId, uint256 licenseTermsId) = marketplace
-            .registerHealthDataIP(
-                DATA_TYPE_SLEEP,
-                IPFS_HASH_1,
-                PRICE_50_IP,
-                QUALITY_METRICS_1
-            );
+        (ipId, , ) = marketplace.registerHealthDataIP(
+            DATA_TYPE_SLEEP,
+            IPFS_HASH_1,
+            PRICE_50_IP,
+            QUALITY_METRICS_1
+        );
         vm.stopPrank();
+    }
+}
 
-        console.log("   IP ID:", ipId);
-        console.log("   Token ID:", tokenId);
+contract StateOneTest is StateOne {
+    function testHealthDataRegistration() public view {
+        // Verify IP was registered
+        assertTrue(IP_ASSET_REGISTRY.isRegistered(ipId));
 
-        // 2. Verify marketplace listing
-        console.log("2. Verifying marketplace listing...");
+        // Verify listing was created
+        (
+            uint256 listingId,
+            address seller,
+            address listedIpId,
+            uint256 price,
+            string memory dataType,
+            bool active,
+            uint256 createdAt
+        ) = marketplace.listings(1);
+
+        assertEq(listingId, 1);
+        assertEq(seller, alice);
+        assertEq(listedIpId, ipId);
+        assertEq(price, PRICE_50_IP);
+        assertEq(dataType, DATA_TYPE_SLEEP);
+        assertTrue(active);
+        assertGt(createdAt, 0);
+    }
+
+    function testGetActiveListings() public view {
         HealthDataMarketplace.Listing[] memory activeListings = marketplace
             .getActiveListings();
         assertEq(activeListings.length, 1);
-        console.log("   Active listings:", activeListings.length);
+        assertEq(activeListings[0].seller, alice);
+        assertEq(activeListings[0].ipId, ipId);
+    }
 
-        // 3. Charlie purchases license
-        console.log("3. Charlie purchasing license...");
-        uint256 charlieInitialBalance = charlie.balance;
+    function testGetListingsByDataType() public view {
+        HealthDataMarketplace.Listing[] memory sleepListings = marketplace
+            .getListingsByDataType(DATA_TYPE_SLEEP);
+        assertEq(sleepListings.length, 1);
+        assertEq(sleepListings[0].seller, alice);
+
+        HealthDataMarketplace.Listing[] memory hrvListings = marketplace
+            .getListingsByDataType(DATA_TYPE_HRV);
+        assertEq(hrvListings.length, 0);
+    }
+
+    function testGetUserListings() public view {
+        HealthDataMarketplace.Listing[] memory aliceListings = marketplace
+            .getUserListings(alice);
+        assertEq(aliceListings.length, 1);
+        assertEq(aliceListings[0].seller, alice);
+
+        HealthDataMarketplace.Listing[] memory bobListings = marketplace
+            .getUserListings(bob);
+        assertEq(bobListings.length, 0);
+    }
+
+    function testRemoveListing() public {
+        // Alice removes her listing
+        vm.prank(alice);
+        marketplace.removeListing(listingId);
+
+        // Verify listing is deactivated
+        (, , , , , bool active, ) = marketplace.listings(listingId);
+        assertFalse(active);
+
+        // Verify no active listings
+        HealthDataMarketplace.Listing[] memory activeListings = marketplace
+            .getActiveListings();
+        assertEq(activeListings.length, 0);
+    }
+
+    function testRemoveListingNotOwner() public {
+        // Bob tries to remove Alice's listing
+        vm.prank(bob);
+        vm.expectRevert(HealthDataMarketplace.NotListingOwner.selector);
+        marketplace.removeListing(listingId);
+    }
+
+    function testPurchaseLicenseInsufficientPayment() public {
+        uint256 insufficientAmount = PRICE_50_IP - 1 ether;
+
+        // Charlie tries to underpay
         vm.prank(charlie);
-        marketplace.purchaseLicense{value: PRICE_50_IP}(1);
-        console.log("   Charlie paid:", PRICE_50_IP);
-        console.log(
-            "   Charlie balance change:",
-            charlieInitialBalance - charlie.balance
-        );
+        vm.expectRevert(HealthDataMarketplace.InsufficientPayment.selector);
+        marketplace.purchaseLicense{value: insufficientAmount}(listingId);
+    }
 
-        // 4. Verify platform fees collected
-        console.log("4. Verifying platform fees...");
-        uint256 expectedPlatformFee = (PRICE_50_IP * platformFeePercent) / 100;
-        uint256 actualPlatformFee = address(marketplace).balance;
-        assertEq(actualPlatformFee, expectedPlatformFee);
-        console.log("   Expected platform fee:", expectedPlatformFee);
-        console.log("   Actual platform fee:", actualPlatformFee);
+    function testPurchaseLicenseListingNotFound() public {
+        vm.prank(charlie);
+        vm.expectRevert(HealthDataMarketplace.ListingNotFound.selector);
+        marketplace.purchaseLicense{value: PRICE_50_IP}(999); // Non-existent listing
+    }
 
-        // 5. Check royalty vault creation
-        console.log("5. Checking royalty vault...");
+    function testPurchaseLicenseListingNotActive() public {
+        // First remove the listing
+        vm.prank(alice);
+        marketplace.removeListing(listingId);
+
+        // Then try to purchase
+        vm.prank(charlie);
+        vm.expectRevert(HealthDataMarketplace.ListingNotActive.selector);
+        marketplace.purchaseLicense{value: PRICE_50_IP}(listingId);
+    }
+
+    // Allow test contract to receive ether
+    receive() external payable {}
+
+    fallback() external payable {}
+}
+
+// ============================================================================
+// STATE TWO: License Purchased (Listing Inactive, Royalty Paid)
+// ============================================================================
+
+abstract contract StateTwo is StateOne {
+    uint256 internal expectedPlatformFee;
+    uint256 internal expectedRoyaltyAmount;
+
+    function setUp() public virtual override {
+        super.setUp();
+
+        // Calculate expected amounts
+        expectedPlatformFee = (PRICE_50_IP * platformFeePercent) / 100;
+        expectedRoyaltyAmount = PRICE_50_IP - expectedPlatformFee;
+
+        // Purchase license
+        vm.prank(charlie);
+        marketplace.purchaseLicense{value: PRICE_50_IP}(listingId);
+    }
+}
+
+contract StateTwoTest is StateTwo {
+    function testLicensePurchase() public view {
+        // Verify Charlie paid the full amount
+        assertEq(charlie.balance, 1000 ether - PRICE_50_IP);
+
+        // Verify platform fee is kept as native tokens
+        assertEq(address(marketplace).balance, expectedPlatformFee);
+
+        // Verify license token was transferred to Charlie
+        assertEq(LICENSE_TOKEN.balanceOf(charlie), 1);
+
+        // Verify royalty was paid to Alice's ipId (only the royalty amount)
         address vault = ROYALTY_MODULE.ipRoyaltyVaults(ipId);
-        console.log("   Royalty vault:", vault);
+        assertTrue(vault != address(0), "Royalty vault should be deployed");
 
-        // 6. Owner withdraws platform fees
-        console.log("6. Owner withdrawing platform fees...");
+        uint256 aliceEarnings = IIpRoyaltyVault(vault).claimableRevenue(
+            ipId,
+            address(WIP_TOKEN)
+        );
+        assertEq(aliceEarnings, expectedRoyaltyAmount);
+
+        // Verify listing was deactivated
+        (, , , , , bool active, ) = marketplace.listings(listingId);
+        assertFalse(active);
+    }
+
+    function testPurchaseLicenseWithOverpayment() public {
+        // Reset to StateOne for this test
+        vm.startPrank(alice);
+        (address ipId2, , ) = marketplace.registerHealthDataIP(
+            DATA_TYPE_HRV,
+            IPFS_HASH_2,
+            PRICE_50_IP,
+            QUALITY_METRICS_2
+        );
+        vm.stopPrank();
+
+        uint256 listingId2 = 2;
+        uint256 overpayment = 10 ether;
+        uint256 totalSent = PRICE_50_IP + overpayment;
+
+        uint256 charlieInitialBalance = charlie.balance;
+
+        // Charlie overpays
+        vm.prank(charlie);
+        marketplace.purchaseLicense{value: totalSent}(listingId2);
+
+        // Verify correct amount was charged (overpayment refunded)
+        assertEq(charlie.balance, charlieInitialBalance - PRICE_50_IP);
+    }
+
+    function testClaimEarnings() public {
+        // Check vault balance before claiming
+        address vault = ROYALTY_MODULE.ipRoyaltyVaults(ipId);
+        uint256 ipAccountBalanceBefore = WIP_TOKEN.balanceOf(ipId);
+
+        vm.prank(alice);
+        marketplace.claimEarnings(ipId);
+
+        // Check that earnings were claimed to IPAccount (only royalty amount)
+        uint256 ipAccountBalanceAfter = WIP_TOKEN.balanceOf(ipId);
+        uint256 claimedAmount = ipAccountBalanceAfter - ipAccountBalanceBefore;
+        assertEq(
+            claimedAmount,
+            expectedRoyaltyAmount,
+            "IPAccount should have received royalty amount"
+        );
+    }
+
+    function testClaimEarningsNotOwner() public {
+        // Bob tries to claim Alice's earnings
+        vm.prank(bob);
+        vm.expectRevert(HealthDataMarketplace.NotIPOwner.selector);
+        marketplace.claimEarnings(ipId);
+    }
+
+    function testWithdrawPlatformFees() public {
         address owner = marketplace.owner();
         uint256 ownerInitialBalance = owner.balance;
-        marketplace.withdrawPlatformFees(); // Withdraw as native $IP
-        console.log(
-            "   Owner balance increase:",
-            owner.balance - ownerInitialBalance
-        );
 
-        console.log("=== Complete User Journey Test Passed ===");
+        // Owner withdraws platform fees as native tokens
+        marketplace.withdrawPlatformFees();
+
+        // Verify platform fees were withdrawn
+        assertEq(owner.balance, ownerInitialBalance + expectedPlatformFee);
+        assertEq(address(marketplace).balance, 0);
     }
+
+    function testWithdrawPlatformFeesNotOwner() public {
+        // Non-owner tries to withdraw platform fees
+        vm.prank(alice);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "OwnableUnauthorizedAccount(address)",
+                alice
+            )
+        );
+        marketplace.withdrawPlatformFees();
+    }
+
+    function testWithdrawPlatformFeesNoFees() public {
+        // First withdraw all fees
+        marketplace.withdrawPlatformFees();
+
+        // Try to withdraw again - should revert
+        vm.expectRevert("No fees to withdraw");
+        marketplace.withdrawPlatformFees();
+    }
+
+    // Allow test contract to receive ether
+    receive() external payable {}
+
+    fallback() external payable {}
+}
+
+// ============================================================================
+// STATE THREE: Multiple Transactions (Complex Scenarios)
+// ============================================================================
+
+abstract contract StateThree is StateTwo {
+    address internal ipId2;
+    uint256 internal listingId2 = 2;
+
+    function setUp() public virtual override {
+        super.setUp();
+
+        // Register second health data IP
+        vm.startPrank(bob);
+        (ipId2, , ) = marketplace.registerHealthDataIP(
+            DATA_TYPE_HRV,
+            IPFS_HASH_2,
+            PRICE_100_IP,
+            QUALITY_METRICS_2
+        );
+        vm.stopPrank();
+    }
+}
+
+contract StateThreeTest is StateThree {
+    function testMultipleHealthDataIPs() public view {
+        // Verify both are registered
+        assertTrue(IP_ASSET_REGISTRY.isRegistered(ipId));
+        assertTrue(IP_ASSET_REGISTRY.isRegistered(ipId2));
+
+        // Check active listings (should be 1 since first was purchased)
+        HealthDataMarketplace.Listing[] memory activeListings = marketplace
+            .getActiveListings();
+        assertEq(activeListings.length, 1);
+        assertEq(activeListings[0].seller, bob);
+
+        // Check listings by data type
+        HealthDataMarketplace.Listing[] memory sleepListings = marketplace
+            .getListingsByDataType(DATA_TYPE_SLEEP);
+        assertEq(sleepListings.length, 0); // Alice's was purchased
+
+        HealthDataMarketplace.Listing[] memory hrvListings = marketplace
+            .getListingsByDataType(DATA_TYPE_HRV);
+        assertEq(hrvListings.length, 1);
+        assertEq(hrvListings[0].seller, bob);
+    }
+
+    function testMultiplePurchases() public {
+        // Purchase second license
+        vm.prank(alice); // Alice buys Bob's data
+        marketplace.purchaseLicense{value: PRICE_100_IP}(listingId2);
+
+        // Verify both listings are inactive
+        (, , , , , bool active1, ) = marketplace.listings(listingId);
+        (, , , , , bool active2, ) = marketplace.listings(listingId2);
+        assertFalse(active1);
+        assertFalse(active2);
+
+        // Verify no active listings
+        HealthDataMarketplace.Listing[] memory activeListings = marketplace
+            .getActiveListings();
+        assertEq(activeListings.length, 0);
+    }
+
+    function testEmergencyWithdraw() public {
+        // Purchase second license to generate more fees
+        vm.prank(alice);
+        marketplace.purchaseLicense{value: PRICE_100_IP}(listingId2);
+
+        // Send some native $IP to contract
+        vm.deal(address(marketplace), 1 ether);
+
+        address owner = marketplace.owner();
+        uint256 ownerInitialWIP = WIP_TOKEN.balanceOf(owner);
+        uint256 ownerInitialBalance = owner.balance;
+        uint256 marketplaceWIP = WIP_TOKEN.balanceOf(address(marketplace));
+        uint256 marketplaceBalance = address(marketplace).balance;
+
+        // Emergency withdraw
+        marketplace.emergencyWithdraw();
+
+        // Verify all funds transferred to owner
+        assertEq(WIP_TOKEN.balanceOf(address(marketplace)), 0);
+        assertEq(address(marketplace).balance, 0);
+    }
+
+    // Allow test contract to receive ether
+    receive() external payable {}
+
+    fallback() external payable {}
+}
+
+// ============================================================================
+// STATE TRANSITION TESTS
+// ============================================================================
+
+contract StateTransitionTest is StateZero {
+    function testStateZeroToStateOne() public {
+        // Test transition from basic setup to health data registration
+        vm.startPrank(alice);
+        (address ipId, , ) = marketplace.registerHealthDataIP(
+            DATA_TYPE_SLEEP,
+            IPFS_HASH_1,
+            PRICE_50_IP,
+            QUALITY_METRICS_1
+        );
+        vm.stopPrank();
+
+        // Verify state transition
+        assertTrue(IP_ASSET_REGISTRY.isRegistered(ipId));
+        assertEq(marketplace.nextListingId(), 2);
+
+        HealthDataMarketplace.Listing[] memory activeListings = marketplace
+            .getActiveListings();
+        assertEq(activeListings.length, 1);
+    }
+
+    function testStateOneToStateTwo() public {
+        // Setup StateOne
+        vm.startPrank(alice);
+        (address ipId, , ) = marketplace.registerHealthDataIP(
+            DATA_TYPE_SLEEP,
+            IPFS_HASH_1,
+            PRICE_50_IP,
+            QUALITY_METRICS_1
+        );
+        vm.stopPrank();
+
+        uint256 listingId = 1;
+        uint256 charlieInitialBalance = charlie.balance;
+
+        // Test transition from listing to purchase
+        vm.prank(charlie);
+        marketplace.purchaseLicense{value: PRICE_50_IP}(listingId);
+
+        // Verify state transition
+        assertEq(charlie.balance, charlieInitialBalance - PRICE_50_IP);
+        assertEq(LICENSE_TOKEN.balanceOf(charlie), 1);
+
+        (, , , , , bool active, ) = marketplace.listings(listingId);
+        assertFalse(active);
+    }
+
+    function testStateTwoToStateThree() public {
+        // Setup StateTwo
+        vm.startPrank(alice);
+        (address ipId1, , ) = marketplace.registerHealthDataIP(
+            DATA_TYPE_SLEEP,
+            IPFS_HASH_1,
+            PRICE_50_IP,
+            QUALITY_METRICS_1
+        );
+        vm.stopPrank();
+
+        vm.prank(charlie);
+        marketplace.purchaseLicense{value: PRICE_50_IP}(1);
+
+        // Test transition to multiple IPs
+        vm.startPrank(bob);
+        (address ipId2, , ) = marketplace.registerHealthDataIP(
+            DATA_TYPE_HRV,
+            IPFS_HASH_2,
+            PRICE_100_IP,
+            QUALITY_METRICS_2
+        );
+        vm.stopPrank();
+
+        // Verify state transition
+        assertTrue(IP_ASSET_REGISTRY.isRegistered(ipId1));
+        assertTrue(IP_ASSET_REGISTRY.isRegistered(ipId2));
+        assertEq(marketplace.nextListingId(), 3);
+
+        HealthDataMarketplace.Listing[] memory activeListings = marketplace
+            .getActiveListings();
+        assertEq(activeListings.length, 1); // Only Bob's listing is active
+    }
+
+    // Allow test contract to receive ether
+    receive() external payable {}
+
+    fallback() external payable {}
 }
