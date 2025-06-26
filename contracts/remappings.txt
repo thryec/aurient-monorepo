@@ -1,0 +1,14 @@
+@solady/=node_modules/solady/
+@openzeppelin/=node_modules/@openzeppelin/
+@openzeppelin-foundry-upgrades/=lib/openzeppelin-foundry-upgrades/
+@create3-deployer/=node_modules/@story-protocol/create3-deployer/
+@storyprotocol/core/=node_modules/@story-protocol/protocol-core/contracts/
+@storyprotocol/script/=node_modules/@story-protocol/protocol-core/script/foundry
+@storyprotocol/test/=node_modules/@story-protocol/protocol-core/test/foundry/
+@storyprotocol/periphery/=node_modules/@story-protocol/protocol-periphery/
+ds-test/=lib/forge-std/lib/ds-test/src/
+forge-std/=lib/forge-std/src/
+solidstate/=lib/solidstate-solidity/contracts/
+murky/=lib/murky/
+openzeppelin-contracts/=lib/openzeppelin-contracts/contracts
+openzeppelin-contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts
