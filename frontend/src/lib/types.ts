@@ -16,6 +16,16 @@ export interface HealthData {
   ipfsHash?: string;
 }
 
+export interface UploadedFile {
+  id: string;
+  name: string;
+  size: number;
+  type: string;
+  ipfsHash?: string;
+  uploadStatus: "pending" | "uploading" | "success" | "error";
+  error?: string;
+}
+
 export interface IPAsset {
   id: string;
   ipId: string;

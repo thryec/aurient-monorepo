@@ -10,11 +10,13 @@ import {
   DollarSign,
   CheckCircle,
   Loader2,
+  Upload,
 } from "lucide-react";
 import { useWallet } from "@/hooks/useWallet";
 import WalletConnect from "@/components/wallet/WalletConnect";
+import FileUpload from "@/components/health-data/FileUpload";
 import { MOCK_HEALTH_DATA } from "@/lib/constants";
-import { TransactionState } from "@/lib/types";
+import { TransactionState, UploadedFile } from "@/lib/types";
 
 const SHOW_WHOOP = false; // Toggle to true to enable Whoop step
 
@@ -24,6 +26,7 @@ const RegistrationFlow = () => {
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedDataIndex, setSelectedDataIndex] = useState(0);
   const [price, setPrice] = useState("50");
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [transaction, setTransaction] = useState<TransactionState>({
     isPending: false,
     isSuccess: false,
@@ -36,14 +39,15 @@ const RegistrationFlow = () => {
     ...(SHOW_WHOOP
       ? [{ number: 2, title: "Connect Whoop", icon: Loader2 }]
       : []),
-    { number: SHOW_WHOOP ? 3 : 2, title: "Preview Data", icon: Database },
-    { number: SHOW_WHOOP ? 4 : 3, title: "Set Price", icon: DollarSign },
-    { number: SHOW_WHOOP ? 5 : 4, title: "Register IP", icon: CheckCircle },
+    { number: SHOW_WHOOP ? 3 : 2, title: "Upload Files", icon: Upload },
+    { number: SHOW_WHOOP ? 4 : 3, title: "Preview Data", icon: Database },
+    { number: SHOW_WHOOP ? 5 : 4, title: "Set Price", icon: DollarSign },
+    { number: SHOW_WHOOP ? 6 : 5, title: "Register IP", icon: CheckCircle },
   ];
 
   const selectedHealthData = MOCK_HEALTH_DATA[selectedDataIndex];
 
-  const maxStep = SHOW_WHOOP ? 5 : 4;
+  const maxStep = SHOW_WHOOP ? 6 : 5;
 
   const handleNextStep = () => {
     if (currentStep < maxStep) {
@@ -55,6 +59,10 @@ const RegistrationFlow = () => {
     if (currentStep > 1) {
       setCurrentStep(currentStep - 1);
     }
+  };
+
+  const handleFilesUploaded = (files: UploadedFile[]) => {
+    setUploadedFiles(files);
   };
 
   const handleRegisterIP = async () => {
@@ -217,16 +225,94 @@ const RegistrationFlow = () => {
               </div>
             )}
 
-            {/* Step 3: Preview Data */}
+            {/* Step 3: Upload Files */}
             {currentStep === (SHOW_WHOOP ? 3 : 2) && (
+              <div>
+                <h2 className="text-3xl md:text-4xl font-light text-gray-900 mb-6 text-center">
+                  Upload Your Health Data Files
+                </h2>
+                <p className="text-lg text-gray-700 mb-8 text-center max-w-2xl mx-auto">
+                  Upload your health data files to IPFS. These files will be
+                  stored securely and used to create your intellectual property.
+                </p>
+
+                <FileUpload
+                  onFilesUploaded={handleFilesUploaded}
+                  uploadedFiles={uploadedFiles}
+                />
+
+                <div className="flex justify-between mt-8">
+                  <button
+                    onClick={handlePrevStep}
+                    className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                    Back
+                  </button>
+                  <button
+                    onClick={handleNextStep}
+                    disabled={
+                      uploadedFiles.filter((f) => f.uploadStatus === "success")
+                        .length === 0
+                    }
+                    className="bg-gray-900 text-white px-6 py-3 rounded-full font-light hover:bg-gray-800 transition-all duration-300 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Continue
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Step 4: Preview Data */}
+            {currentStep === (SHOW_WHOOP ? 4 : 3) && (
               <div>
                 <h2 className="text-3xl md:text-4xl font-light text-gray-900 mb-6 text-center">
                   Preview Your Health Data
                 </h2>
                 <p className="text-lg text-gray-700 mb-8 text-center max-w-2xl mx-auto">
                   This is a preview of the processed, anonymized data that will
-                  be protected on Story
+                  be protected on Story Protocol.
                 </p>
+
+                {/* Uploaded Files Section */}
+                {uploadedFiles.length > 0 && (
+                  <div className="mb-8">
+                    <h3 className="text-xl font-medium text-gray-900 mb-4">
+                      Uploaded Files
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                      {uploadedFiles
+                        .filter((file) => file.uploadStatus === "success")
+                        .map((file) => (
+                          <div
+                            key={file.id}
+                            className="p-4 border border-gray-200 rounded-lg"
+                          >
+                            <div className="flex items-center space-x-3">
+                              <span className="text-2xl">
+                                {file.type === "application/pdf"
+                                  ? "📄"
+                                  : file.type === "application/json"
+                                  ? "📋"
+                                  : file.type === "text/csv"
+                                  ? "📊"
+                                  : "📁"}
+                              </span>
+                              <div>
+                                <p className="font-medium text-gray-900">
+                                  {file.name}
+                                </p>
+                                <p className="text-sm text-gray-500">
+                                  IPFS: {file.ipfsHash?.substring(0, 12)}...
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
                   {MOCK_HEALTH_DATA.map((data, index) => (
@@ -315,8 +401,8 @@ const RegistrationFlow = () => {
               </div>
             )}
 
-            {/* Step 4: Set Price */}
-            {currentStep === (SHOW_WHOOP ? 4 : 3) && (
+            {/* Step 5: Set Price */}
+            {currentStep === (SHOW_WHOOP ? 5 : 4) && (
               <div>
                 <h2 className="text-3xl md:text-4xl font-light text-gray-900 mb-6 text-center">
                   Set Your License Price
@@ -387,8 +473,8 @@ const RegistrationFlow = () => {
               </div>
             )}
 
-            {/* Step 5: Register IP */}
-            {currentStep === (SHOW_WHOOP ? 5 : 4) && (
+            {/* Step 6: Register IP */}
+            {currentStep === (SHOW_WHOOP ? 6 : 5) && (
               <div className="text-center">
                 <h2 className="text-3xl md:text-4xl font-light text-gray-900 mb-6">
                   Protect your health data
@@ -421,6 +507,16 @@ const RegistrationFlow = () => {
                             <span>Quality Score:</span>
                             <span>
                               {selectedHealthData.metrics.qualityScore}/10
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Files Uploaded:</span>
+                            <span>
+                              {
+                                uploadedFiles.filter(
+                                  (f) => f.uploadStatus === "success"
+                                ).length
+                              }
                             </span>
                           </div>
                         </div>
