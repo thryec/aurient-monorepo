@@ -14,13 +14,16 @@
     "@helia/interface": "^5.3.2",
     "@helia/ipns": "^8.2.3",
     "@helia/unixfs": "^5.0.3",
+    "@web3-storage/w3up-client": "^17.3.0",
     "axios": "^1.10.0",
     "helia": "^5.4.2",
     "lucide-react": "^0.515.0",
     "next": "15.3.3",
+    "pinata": "^2.4.8",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "viem": "^2.31.2"
+    "viem": "^2.31.2",
+    "web3.storage": "^4.5.5"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

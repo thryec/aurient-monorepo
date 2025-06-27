@@ -8,14 +8,20 @@ import {
   Loader2,
   CheckCircle,
   AlertCircle,
+  Copy,
+  Check,
 } from "lucide-react";
-import { uploadFileToIPFS } from "@/lib/ipfs";
 import { UploadedFile } from "@/lib/types";
 
 interface FileUploadProps {
   onFilesUploaded: (files: UploadedFile[]) => void;
   uploadedFiles: UploadedFile[];
 }
+
+// Only use Pinata gateway
+const PINATA_GATEWAY = process.env.NEXT_PUBLIC_PINATA_GATEWAY;
+
+console.log("NEXT_PUBLIC_PINATA_GATEWAY", PINATA_GATEWAY);
 
 const FileUpload: React.FC<FileUploadProps> = ({
   onFilesUploaded,
@@ -24,6 +30,14 @@ const FileUpload: React.FC<FileUploadProps> = ({
   const [isDragOver, setIsDragOver] = useState(false);
   const [uploadingFiles, setUploadingFiles] = useState<Set<string>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Copy CID to clipboard with feedback
+  const [copiedCid, setCopiedCid] = useState<string | null>(null);
+  const handleCopyCid = async (cid: string) => {
+    await navigator.clipboard.writeText(cid);
+    setCopiedCid(cid);
+    setTimeout(() => setCopiedCid(null), 1500);
+  };
 
   const allowedTypes = [
     "application/pdf",
@@ -51,13 +65,17 @@ const FileUpload: React.FC<FileUploadProps> = ({
   };
 
   const uploadToIPFS = async (file: File): Promise<string> => {
-    try {
-      const ipfsHash = await uploadFileToIPFS(file);
-      return ipfsHash;
-    } catch (error) {
-      console.error("IPFS upload failed:", error);
-      throw new Error("Failed to upload file to IPFS");
-    }
+    // Use FormData and POST to /api/files (your Pinata API route)
+    const data = new FormData();
+    data.set("file", file);
+    const uploadRequest = await fetch("/api/pinata", {
+      method: "POST",
+      body: data,
+    });
+    const result = await uploadRequest.json();
+    console.log("result", result);
+    if (!result || !result.cid) throw new Error("Upload failed");
+    return result.cid;
   };
 
   const handleFileUpload = async (files: FileList) => {
@@ -211,11 +229,52 @@ const FileUpload: React.FC<FileUploadProps> = ({
                   {getFileIcon(file.type, file.name)}
                 </span>
                 <div>
-                  <p className="font-medium text-gray-900">{file.name}</p>
-                  <p className="text-sm text-gray-500">
+                  <p className="font-medium text-gray-900">
+                    {file.ipfsHash ? (
+                      <a
+                        href={`https://${PINATA_GATEWAY}/ipfs/${file.ipfsHash}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="hover:underline text-blue-700"
+                      >
+                        {file.name}
+                      </a>
+                    ) : (
+                      file.name
+                    )}
+                  </p>
+                  <p className="text-sm text-gray-500 flex items-center gap-2">
                     {formatFileSize(file.size)}
-                    {file.ipfsHash &&
-                      ` • IPFS: ${file.ipfsHash.substring(0, 12)}...`}
+                    {file.ipfsHash && (
+                      <div className="mt-1 flex flex-col gap-1">
+                        <div className="flex gap-3">
+                          <a
+                            href={`https://${PINATA_GATEWAY}/ipfs/${file.ipfsHash}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-700 hover:underline text-xs font-medium"
+                          >
+                            View on Pinata Gateway
+                          </a>
+                        </div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded select-all">
+                            {file.ipfsHash}
+                          </span>
+                          <button
+                            onClick={() => handleCopyCid(file.ipfsHash!)}
+                            className="text-gray-400 hover:text-blue-600 transition-colors"
+                            title="Copy CID"
+                          >
+                            {copiedCid === file.ipfsHash ? (
+                              <Check className="w-4 h-4 text-green-500" />
+                            ) : (
+                              <Copy className="w-4 h-4" />
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </p>
                 </div>
               </div>
