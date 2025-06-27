@@ -16,16 +16,19 @@ import { UploadedFile } from "@/lib/types";
 interface FileUploadProps {
   onFilesUploaded: (files: UploadedFile[]) => void;
   uploadedFiles: UploadedFile[];
+  onUploadStart?: (totalFiles: number) => void;
+  onUploadProgress?: (current: number, fileName: string) => void;
+  onUploadComplete?: () => void;
 }
 
-// Only use Pinata gateway
 const PINATA_GATEWAY = process.env.NEXT_PUBLIC_PINATA_GATEWAY;
-
-console.log("NEXT_PUBLIC_PINATA_GATEWAY", PINATA_GATEWAY);
 
 const FileUpload: React.FC<FileUploadProps> = ({
   onFilesUploaded,
   uploadedFiles,
+  onUploadStart,
+  onUploadProgress,
+  onUploadComplete,
 }) => {
   const [isDragOver, setIsDragOver] = useState(false);
   const [uploadingFiles, setUploadingFiles] = useState<Set<string>>(new Set());
@@ -79,8 +82,13 @@ const FileUpload: React.FC<FileUploadProps> = ({
 
   const handleFileUpload = async (files: FileList) => {
     const newFiles: UploadedFile[] = [];
+    const fileArray = Array.from(files);
 
-    for (const file of Array.from(files)) {
+    // Call upload start callback
+    onUploadStart?.(fileArray.length);
+
+    for (let i = 0; i < fileArray.length; i++) {
+      const file = fileArray[i];
       const error = validateFile(file);
       if (error) {
         newFiles.push({
@@ -107,6 +115,8 @@ const FileUpload: React.FC<FileUploadProps> = ({
 
       try {
         uploadedFile.uploadStatus = "uploading";
+        // Call progress callback
+        onUploadProgress?.(i + 1, file.name);
         const ipfsHash = await uploadToIPFS(file);
         uploadedFile.ipfsHash = ipfsHash;
         uploadedFile.uploadStatus = "success";
@@ -123,6 +133,8 @@ const FileUpload: React.FC<FileUploadProps> = ({
     }
 
     onFilesUploaded([...uploadedFiles, ...newFiles]);
+    // Call upload complete callback
+    onUploadComplete?.();
   };
 
   const handleDrop = useCallback(
@@ -179,6 +191,24 @@ const FileUpload: React.FC<FileUploadProps> = ({
 
   return (
     <div className="space-y-6">
+      {/* Upload Progress Indicator */}
+      {uploadingFiles.size > 0 && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-center space-x-3">
+            <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-blue-900">
+                Uploading {uploadingFiles.size} file
+                {uploadingFiles.size > 1 ? "s" : ""}...
+              </p>
+              <p className="text-xs text-blue-700">
+                Files are being securely uploaded to IPFS
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Upload Area */}
       <div
         className={`
