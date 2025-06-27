@@ -73,7 +73,6 @@ const FileUpload: React.FC<FileUploadProps> = ({
       body: data,
     });
     const result = await uploadRequest.json();
-    console.log("result", result);
     if (!result || !result.cid) throw new Error("Upload failed");
     return result.cid;
   };
