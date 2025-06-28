@@ -4,7 +4,6 @@ pragma solidity ^0.8.26;
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {IIPAssetRegistry} from "@storyprotocol/core/interfaces/registries/IIPAssetRegistry.sol";
 import {ILicensingModule} from "@storyprotocol/core/interfaces/modules/licensing/ILicensingModule.sol";
 import {IPILicenseTemplate} from "@storyprotocol/core/interfaces/modules/licensing/IPILicenseTemplate.sol";
 import {IRegistrationWorkflows} from "@storyprotocol/periphery/contracts/interfaces/workflows/IRegistrationWorkflows.sol";
@@ -14,11 +13,9 @@ import {PILFlavors} from "@storyprotocol/core/lib/PILFlavors.sol";
 import {IRoyaltyModule} from "@storyprotocol/core/interfaces/modules/royalty/IRoyaltyModule.sol";
 import {IIpRoyaltyVault} from "@storyprotocol/core/interfaces/modules/royalty/policies/IIpRoyaltyVault.sol";
 import {IIPAccount} from "@storyprotocol/core/interfaces/IIPAccount.sol";
-import {LicenseToken} from "@storyprotocol/core/LicenseToken.sol";
 import {RoyaltyWorkflows} from "@storyprotocol/periphery/contracts/workflows/RoyaltyWorkflows.sol";
 import {Licensing} from "@storyprotocol/core/lib/Licensing.sol";
 import {ILicenseAttachmentWorkflows} from "@storyprotocol/periphery/contracts/interfaces/workflows/ILicenseAttachmentWorkflows.sol";
-import {console} from "forge-std/console.sol";
 
 /**
  * @title IWIP
