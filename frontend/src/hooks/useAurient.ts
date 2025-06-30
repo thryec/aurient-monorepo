@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { formatEther, parseEther } from "viem";
 import { useWallet } from "./useWallet";
 import {
@@ -168,7 +168,7 @@ export function useAurient() {
     }
   };
 
-  const loadActiveListings = async () => {
+  const loadActiveListings = useCallback(async () => {
     if (!publicClient) return;
 
     try {
@@ -187,7 +187,7 @@ export function useAurient() {
     } catch (error) {
       console.error("Failed to load active listings:", error);
     }
-  };
+  }, [publicClient]);
 
   const registerHealthData = async (
     params: RegisterHealthDataParams

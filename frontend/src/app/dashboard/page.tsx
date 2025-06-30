@@ -187,7 +187,8 @@ const Dashboard = () => {
       loadUserHealthData();
       loadMarketplaceData();
     }
-  }, [isConnected, loadUserHealthData, loadMarketplaceData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isConnected]);
 
   useEffect(() => {
     if (userAssets.length > 0) {
@@ -237,7 +238,7 @@ const Dashboard = () => {
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <button
             onClick={() => router.push("/")}
-            className="text-gray-900 font-light text-xl tracking-wide hover:text-gray-700 transition-colors"
+            className="text-gray-900 font-light text-xl tracking-wide hover:text-gray-700 transition-colors cursor-pointer"
           >
             Aurient
           </button>
