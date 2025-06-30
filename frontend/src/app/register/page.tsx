@@ -13,6 +13,7 @@ import {
   Upload,
 } from "lucide-react";
 import { useWallet } from "@/hooks/useWallet";
+import { useAurient } from "@/hooks/useAurient";
 import WalletConnect from "@/components/wallet/WalletConnect";
 import FileUpload from "@/components/health-data/FileUpload";
 import { TransactionState, UploadedFile } from "@/lib/types";
@@ -22,6 +23,7 @@ const SHOW_WHOOP = false; // Toggle to true to enable Whoop step
 const RegistrationFlow = () => {
   const router = useRouter();
   const { isConnected } = useWallet();
+  const { registerHealthData } = useAurient();
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedDataIndex, setSelectedDataIndex] = useState(0);
   const [price, setPrice] = useState("50");
@@ -136,25 +138,33 @@ const RegistrationFlow = () => {
     setTransaction({ isPending: true, isSuccess: false, isError: false });
 
     try {
-      // Simulate blockchain transaction
-      await new Promise((resolve) => setTimeout(resolve, 3000));
+      if (!selectedHealthData) {
+        throw new Error("No health data selected");
+      }
+
+      const result = await registerHealthData({
+        dataType: selectedHealthData.dataType,
+        ipfsHash: selectedHealthData.ipfsHash || "",
+        priceIP: price,
+        qualityMetrics: JSON.stringify(selectedHealthData.metrics),
+      });
 
       setTransaction({
         isPending: false,
         isSuccess: true,
         isError: false,
-        txHash: "0x123...abc",
+        txHash: result.transactionHash,
       });
 
       setTimeout(() => {
         router.push("/dashboard");
       }, 2000);
-    } catch (error) {
+    } catch (error: any) {
       setTransaction({
         isPending: false,
         isSuccess: false,
         isError: true,
-        error: "Transaction failed. Please try again.",
+        error: error.message || "Transaction failed. Please try again.",
       });
     }
   };
@@ -254,8 +264,8 @@ const RegistrationFlow = () => {
                       isActive
                         ? "bg-gray-900 border-gray-900 text-white"
                         : isCompleted
-                        ? "bg-green-500 border-green-500 text-white"
-                        : "bg-white border-gray-300 text-gray-400"
+                          ? "bg-green-500 border-green-500 text-white"
+                          : "bg-white border-gray-300 text-gray-400"
                     }
                   `}
                   >
@@ -425,10 +435,10 @@ const RegistrationFlow = () => {
                                   {file.type === "application/pdf"
                                     ? "📄"
                                     : file.type === "application/json"
-                                    ? "📋"
-                                    : file.type === "text/csv"
-                                    ? "📊"
-                                    : "📁"}
+                                      ? "📋"
+                                      : file.type === "text/csv"
+                                        ? "📊"
+                                        : "📁"}
                                 </span>
                                 <div>
                                   <p className="font-medium text-gray-900">

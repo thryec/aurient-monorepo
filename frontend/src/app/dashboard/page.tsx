@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   Plus,
@@ -10,63 +10,205 @@ import {
   ExternalLink,
   Eye,
   Copy,
+  Loader2,
 } from "lucide-react";
 import { useWallet } from "@/hooks/useWallet";
+import { useAurient } from "@/hooks/useAurient";
 import WalletConnect from "@/components/wallet/WalletConnect";
-import { MOCK_USER_ASSETS } from "@/lib/constants";
 import { IPAsset, UserEarnings } from "@/lib/types";
+import { formatEther } from "viem";
 
 const Dashboard = () => {
   const router = useRouter();
   const { isConnected } = useWallet();
-  const [assets, setAssets] = useState<IPAsset[]>(MOCK_USER_ASSETS);
-  const [isLoading, setIsLoading] = useState(false);
+  const {
+    userHealthData,
+    marketplaceData,
+    loading,
+    claimEarnings,
+    loadUserHealthData,
+    loadMarketplaceData,
+    getHealthDataMetadata,
+  } = useAurient();
+  const [isClaiming, setIsClaiming] = useState(false);
+  const [assetsWithMetadata, setAssetsWithMetadata] = useState<IPAsset[]>([]);
+  const [metadataLoading, setMetadataLoading] = useState(false);
 
-  const mockEarnings: UserEarnings = {
-    totalEarned: "375 IP",
-    claimableBalance: "150 IP",
-    recentSales: [
-      {
-        id: "1",
-        buyerAddress: "0xabc...123",
-        amount: "50 IP",
-        date: "2025-06-10",
-        ipId: "0x123...abc",
-      },
-      {
-        id: "2",
-        buyerAddress: "0xdef...456",
-        amount: "75 IP",
-        date: "2025-06-09",
-        ipId: "0x456...def",
-      },
-      {
-        id: "3",
-        buyerAddress: "0xghi...789",
-        amount: "50 IP",
-        date: "2025-06-08",
-        ipId: "0x123...abc",
-      },
-    ],
+  // Convert user listings to IPAsset format for display
+  const userAssets: IPAsset[] = useMemo(() => {
+    return (
+      userHealthData?.listings?.map((listing, index) => ({
+        id: listing.listingId.toString(),
+        ipId: listing.ipId,
+        tokenId: listing.listingId.toString(),
+        owner: listing.seller,
+        dataType: listing.dataType,
+        price: `${formatEther(BigInt(listing.priceIP))} IP`,
+        qualityScore: 8.5, // This will be updated with real metadata
+        listedDate: new Date(
+          Number(listing.createdAt) * 1000
+        ).toLocaleDateString(),
+        isActive: listing.active,
+        earnings: "0 IP", // TODO: Calculate from royalties
+        healthData: {
+          id: listing.listingId.toString(),
+          dataType: listing.dataType,
+          metrics: {
+            averageSleepDuration: "7.5 hours",
+            averageHRV: "45ms",
+            dataPoints: 1000,
+            qualityScore: 8.5,
+          },
+          timeRange: "Last 30 days",
+          anonymized: true,
+          ipfsHash: "", // Will be updated with real metadata
+        },
+      })) || []
+    );
+  }, [userHealthData]);
+
+  const userEarnings: UserEarnings = {
+    totalEarned: userHealthData?.totalEarnings || "0 IP",
+    claimableBalance: userHealthData?.claimableEarnings || "0 IP",
+    recentSales: [], // TODO: Implement recent sales tracking
   };
 
-  //   useEffect(() => {
-  //     if (!isConnected) {
-  //       router.push("/");
-  //     }
-  //   }, [isConnected, router]);
+  // Fetch metadata for all user assets
+  const fetchAssetsMetadata = async () => {
+    if (!userAssets.length) return;
+
+    setMetadataLoading(true);
+    try {
+      const assetsWithMetadata = await Promise.all(
+        userAssets.map(async (asset) => {
+          try {
+            const metadata = await getHealthDataMetadata(asset.ipId);
+
+            // If metadata itself is the array
+            if (Array.isArray(metadata)) {
+              // Example: [ipfsUri, ipfsHash, nftUri, nftHash, dataType, metricsJson]
+              const ipfsHash = metadata[1] || "";
+              const dataType = metadata[4] || asset.dataType;
+              let qualityMetrics = {
+                averageSleepDuration: "7.5 hours",
+                averageHRV: "45ms",
+                dataPoints: 1000,
+                qualityScore: 8.5,
+              };
+              try {
+                const parsedMetrics = JSON.parse(metadata[5]);
+                qualityMetrics = {
+                  ...qualityMetrics,
+                  ...parsedMetrics,
+                };
+              } catch (e) {
+                console.warn(
+                  "Failed to parse quality metrics for",
+                  asset.ipId,
+                  "value:",
+                  metadata[5],
+                  "error:",
+                  e
+                );
+              }
+              return {
+                ...asset,
+                dataType,
+                qualityScore: qualityMetrics.qualityScore || 8.5,
+                healthData: {
+                  ...asset.healthData,
+                  dataType,
+                  metrics: qualityMetrics,
+                  ipfsHash: ipfsHash,
+                },
+              };
+            }
+
+            // Fallback: handle old object format
+            if (metadata && typeof metadata === "object") {
+              let qualityMetrics = {
+                averageSleepDuration: "7.5 hours",
+                averageHRV: "45ms",
+                dataPoints: 1000,
+                qualityScore: 8.5,
+              };
+              if (typeof metadata.qualityMetrics === "string") {
+                try {
+                  const parsedMetrics = JSON.parse(metadata.qualityMetrics);
+                  qualityMetrics = {
+                    ...qualityMetrics,
+                    ...parsedMetrics,
+                  };
+                } catch (e) {
+                  console.warn(
+                    "Failed to parse quality metrics for",
+                    asset.ipId,
+                    "value:",
+                    metadata.qualityMetrics,
+                    "error:",
+                    e
+                  );
+                }
+              }
+              return {
+                ...asset,
+                qualityScore: qualityMetrics.qualityScore || 8.5,
+                healthData: {
+                  ...asset.healthData,
+                  metrics: qualityMetrics,
+                  ipfsHash: metadata.ipMetadataHash || "",
+                },
+              };
+            }
+
+            return asset;
+          } catch (error) {
+            console.error(
+              "Failed to fetch metadata for asset",
+              asset.ipId,
+              error
+            );
+            return asset;
+          }
+        })
+      );
+
+      setAssetsWithMetadata(assetsWithMetadata);
+    } catch (error) {
+      console.error("Failed to fetch assets metadata:", error);
+      setAssetsWithMetadata(userAssets);
+    } finally {
+      setMetadataLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isConnected) {
+      loadUserHealthData();
+      loadMarketplaceData();
+    }
+  }, [isConnected, loadUserHealthData, loadMarketplaceData]);
+
+  useEffect(() => {
+    if (userAssets.length > 0) {
+      fetchAssetsMetadata();
+    } else {
+      setAssetsWithMetadata([]);
+    }
+  }, [userAssets]);
 
   const handleClaimEarnings = async () => {
-    setIsLoading(true);
+    setIsClaiming(true);
     try {
-      // Simulate claiming earnings
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      // In real implementation, this would call the smart contract
-      alert("Earnings claimed successfully!");
+      // For now, we'll claim earnings for the first IP asset
+      // In a real implementation, you'd want to claim for specific IPs or all at once
+      if (assetsWithMetadata.length > 0) {
+        await claimEarnings(assetsWithMetadata[0].ipId);
+      }
     } catch (error) {
       console.error("Failed to claim earnings:", error);
     } finally {
-      setIsLoading(false);
+      setIsClaiming(false);
     }
   };
 
@@ -124,10 +266,19 @@ const Dashboard = () => {
                 <Database className="w-8 h-8 text-blue-600" />
                 <h3 className="text-lg font-medium text-gray-900">IP Assets</h3>
               </div>
-              <p className="text-3xl font-light text-gray-900 mb-1">
-                {assets.length}
-              </p>
-              <p className="text-sm text-gray-600">Registered data sets</p>
+              {loading.userHealthData ? (
+                <div className="flex items-center gap-2">
+                  <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+                  <span className="text-gray-400">Loading...</span>
+                </div>
+              ) : (
+                <>
+                  <p className="text-3xl font-light text-gray-900 mb-1">
+                    {assetsWithMetadata.length}
+                  </p>
+                  <p className="text-sm text-gray-600">Registered data sets</p>
+                </>
+              )}
             </div>
 
             <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-6 border border-gray-200 shadow-lg">
@@ -138,11 +289,9 @@ const Dashboard = () => {
                 </h3>
               </div>
               <p className="text-3xl font-light text-gray-900 mb-1">
-                {mockEarnings.totalEarned}
+                {userEarnings.totalEarned}
               </p>
-              <p className="text-sm text-gray-600">
-                From {mockEarnings.recentSales.length} license sales
-              </p>
+              <p className="text-sm text-gray-600">From license sales</p>
             </div>
 
             <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-6 border border-gray-200 shadow-lg">
@@ -155,14 +304,21 @@ const Dashboard = () => {
                 </div>
                 <button
                   onClick={handleClaimEarnings}
-                  disabled={isLoading}
-                  className="bg-purple-600 text-white px-4 py-2 rounded-full text-sm font-light hover:bg-purple-700 transition-colors disabled:opacity-50"
+                  disabled={isClaiming || assetsWithMetadata.length === 0}
+                  className="bg-purple-600 text-white px-4 py-2 rounded-full text-sm font-light hover:bg-purple-700 transition-colors disabled:opacity-50 flex items-center gap-2"
                 >
-                  {isLoading ? "Claiming..." : "Claim"}
+                  {isClaiming ? (
+                    <>
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      Claiming...
+                    </>
+                  ) : (
+                    "Claim"
+                  )}
                 </button>
               </div>
               <p className="text-3xl font-light text-gray-900 mb-1">
-                {mockEarnings.claimableBalance}
+                {userEarnings.claimableBalance}
               </p>
               <p className="text-sm text-gray-600">Ready to withdraw</p>
             </div>
@@ -183,87 +339,131 @@ const Dashboard = () => {
               </button>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {assets.map((asset) => (
-                <div
-                  key={asset.id}
-                  className="bg-white/90 backdrop-blur-sm rounded-2xl p-6 border border-gray-200 shadow-lg"
+            {loading.userHealthData ? (
+              <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-12 border border-gray-200 shadow-lg text-center">
+                <Loader2 className="w-8 h-8 animate-spin text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-600">Loading your IP assets...</p>
+              </div>
+            ) : assetsWithMetadata.length === 0 ? (
+              <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-12 border border-gray-200 shadow-lg text-center">
+                <Database className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-xl font-medium text-gray-900 mb-2">
+                  No IP Assets Yet
+                </h3>
+                <p className="text-gray-600 mb-6">
+                  Start by registering your health data to create your first IP
+                  asset.
+                </p>
+                <button
+                  onClick={() => router.push("/register")}
+                  className="bg-gray-900 text-white px-6 py-3 rounded-full font-light hover:bg-gray-800 transition-all duration-300"
                 >
-                  <div className="flex justify-between items-start mb-4">
-                    <div>
-                      <h3 className="text-xl font-medium text-gray-900 mb-2">
-                        {asset.dataType}
-                      </h3>
-                      <div className="flex items-center gap-4 text-sm text-gray-600">
-                        <span>Quality: {asset.qualityScore}/10</span>
-                        <span>Price: {asset.price}</span>
-                        <span
-                          className={`px-2 py-1 rounded-full text-xs ${
-                            asset.isActive
-                              ? "bg-green-100 text-green-700"
-                              : "bg-gray-100 text-gray-700"
-                          }`}
-                        >
-                          {asset.isActive ? "Active" : "Inactive"}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-lg font-medium text-green-600">
-                        {asset.earnings}
-                      </p>
-                      <p className="text-sm text-gray-600">earned</p>
-                    </div>
-                  </div>
-
-                  <div className="bg-gray-50 rounded-xl p-4 mb-4">
-                    <div className="grid grid-cols-2 gap-4 text-sm">
+                  Register Your First Data
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {assetsWithMetadata.map((asset) => (
+                  <div
+                    key={asset.id}
+                    className="bg-white/90 backdrop-blur-sm rounded-2xl p-6 border border-gray-200 shadow-lg"
+                  >
+                    <div className="flex justify-between items-start mb-4">
                       <div>
-                        <p className="text-gray-600">IP ID</p>
-                        <div className="flex items-center gap-2">
-                          <p className="font-mono text-gray-900">
-                            {asset.ipId.slice(0, 8)}...
-                          </p>
-                          <button
-                            onClick={() => copyToClipboard(asset.ipId)}
-                            className="text-gray-400 hover:text-gray-600"
+                        <h3 className="text-xl font-medium text-gray-900 mb-2">
+                          {asset.dataType}
+                        </h3>
+                        <div className="flex items-center gap-4 text-sm text-gray-600">
+                          <span>Quality: {asset.qualityScore}/10</span>
+                          <span>Price: {asset.price}</span>
+                          <span
+                            className={`px-2 py-1 rounded-full text-xs ${
+                              asset.isActive
+                                ? "bg-green-100 text-green-700"
+                                : "bg-gray-100 text-gray-700"
+                            }`}
                           >
-                            <Copy className="w-3 h-3" />
-                          </button>
+                            {asset.isActive ? "Active" : "Inactive"}
+                          </span>
                         </div>
                       </div>
-                      <div>
-                        <p className="text-gray-600">Token ID</p>
-                        <p className="font-mono text-gray-900">
-                          {asset.tokenId}
+                      <div className="text-right">
+                        <p className="text-lg font-medium text-green-600">
+                          {asset.earnings}
                         </p>
-                      </div>
-                      <div>
-                        <p className="text-gray-600">Listed Date</p>
-                        <p className="text-gray-900">{asset.listedDate}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-600">Data Points</p>
-                        <p className="text-gray-900">
-                          {asset.healthData.metrics.dataPoints}
-                        </p>
+                        <p className="text-sm text-gray-600">earned</p>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="flex gap-3">
-                    <button className="flex-1 bg-gray-100 text-gray-700 px-4 py-2 rounded-full text-sm font-light hover:bg-gray-200 transition-colors flex items-center justify-center gap-2">
-                      <Eye className="w-4 h-4" />
-                      View Details
-                    </button>
-                    <button className="flex-1 bg-gray-100 text-gray-700 px-4 py-2 rounded-full text-sm font-light hover:bg-gray-200 transition-colors flex items-center justify-center gap-2">
-                      <ExternalLink className="w-4 h-4" />
-                      Story Explorer
-                    </button>
+                    <div className="bg-gray-50 rounded-xl p-4 mb-4">
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <p className="text-gray-600">IP ID</p>
+                          <div className="flex items-center gap-2">
+                            <p className="font-mono text-gray-900">
+                              {asset.ipId.slice(0, 8)}...
+                            </p>
+                            <button
+                              onClick={() => copyToClipboard(asset.ipId)}
+                              className="text-gray-400 hover:text-gray-600"
+                            >
+                              <Copy className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </div>
+                        <div>
+                          <p className="text-gray-600">Token ID</p>
+                          <p className="font-mono text-gray-900">
+                            {asset.tokenId}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-gray-600">Listed Date</p>
+                          <p className="text-gray-900">{asset.listedDate}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-600">Data Points</p>
+                          <p className="text-gray-900">
+                            {asset.healthData.metrics.dataPoints.toLocaleString()}
+                          </p>
+                        </div>
+                        {asset.healthData.ipfsHash && (
+                          <div className="col-span-2">
+                            <p className="text-gray-600">IPFS Hash</p>
+                            <div className="flex items-center gap-2">
+                              <p className="font-mono text-gray-900 text-xs">
+                                {asset.healthData.ipfsHash.slice(0, 20)}...
+                              </p>
+                              <button
+                                onClick={() =>
+                                  copyToClipboard(
+                                    asset.healthData.ipfsHash || ""
+                                  )
+                                }
+                                className="text-gray-400 hover:text-gray-600"
+                              >
+                                <Copy className="w-3 h-3" />
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex gap-3">
+                      <button className="flex-1 bg-gray-100 text-gray-700 px-4 py-2 rounded-full text-sm font-light hover:bg-gray-200 transition-colors flex items-center justify-center gap-2">
+                        <Eye className="w-4 h-4" />
+                        View Details
+                      </button>
+                      <button className="flex-1 bg-gray-100 text-gray-700 px-4 py-2 rounded-full text-sm font-light hover:bg-gray-200 transition-colors flex items-center justify-center gap-2">
+                        <ExternalLink className="w-4 h-4" />
+                        Story Explorer
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Recent Sales */}
@@ -272,9 +472,9 @@ const Dashboard = () => {
               Recent License Sales
             </h2>
 
-            {mockEarnings.recentSales.length > 0 ? (
+            {userEarnings.recentSales.length > 0 ? (
               <div className="space-y-4">
-                {mockEarnings.recentSales.map((sale) => (
+                {userEarnings.recentSales.map((sale) => (
                   <div
                     key={sale.id}
                     className="flex justify-between items-center p-4 bg-gray-50 rounded-xl"
