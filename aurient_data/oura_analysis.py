@@ -772,8 +772,8 @@ The meal plan should only contain breakfast, lunch, dinner and 1 snack.
       ],
       "description": "2-3 sentence explanation of why this movement program works specifically for Emma based on her Oura data patterns, menstrual cycle phase, and health goals. Mention specific benefits for performance optimization and recovery.",
       "sources": [
-        {{"name": "High-Intensity Interval Training in Women", "url": "https://pubmed.ncbi.nlm.nih.gov/29765853/"}},
-        {{"name": "Exercise and Menstrual Cycle Performance", "url": "https://doi.org/10.1249/MSS.0000000000001946"}}
+        {{"name": "Actual study title", "url": "https://pubmed.ncbi.nlm.nih.gov/12345678/"}},
+        {{"name": "Another actual study title", "url": "https://doi.org/10.1234/example"}}
       ]
     }},
     {{
@@ -787,22 +787,22 @@ The meal plan should only contain breakfast, lunch, dinner and 1 snack.
       ],
       "description": "2-3 sentence explanation of why this mindfulness program works specifically for Emma based on her stress patterns, HRV data, and cycle phase. Mention benefits for stress resilience and sleep optimization.",
       "sources": [
-        {{"name": "Breathing Techniques for Stress Reduction", "url": "https://pubmed.ncbi.nlm.nih.gov/31376606/"}},
-        {{"name": "HRV Biofeedback and Autonomic Function", "url": "https://doi.org/10.1016/j.brat.2019.103432"}}
+        {{"name": "Actual study title", "url": "https://pubmed.ncbi.nlm.nih.gov/12345678/"}},
+        {{"name": "Another actual study title", "url": "https://doi.org/10.1234/example"}}
       ]
     }},
     {{
       "title": "Nutrition",
       "items": [
-        "BREAKFAST: Granola with Greek Yogurt and blueberries and honey",
-        "LUNCH: Salmon and quinoa salad with kale", 
-        "DINNER: Paprika chicken with brown rice and broccoli",
-        "SNACK: Mixed nuts and apple slices"
+        "Breakfast: Granola with Greek Yogurt and blueberries and honey",
+        "Lunch: Salmon and quinoa salad with kale", 
+        "Dinner: Paprika chicken with brown rice and broccoli",
+        "Snack: Mixed nuts and apple slices"
       ],
       "description": "2-3 sentence explanation of why this nutrition program works specifically for Emma based on her activity levels, recovery patterns, and cycle phase. Mention benefits for performance and hormonal balance.",
       "sources": [
-        {{"name": "Nutrition Timing for Athletic Performance", "url": "https://pubmed.ncbi.nlm.nih.gov/32034384/"}},
-        {{"name": "Protein Requirements for Female Athletes", "url": "https://doi.org/10.1093/advances/nmz090"}}
+        {{"name": "Actual study title", "url": "https://pubmed.ncbi.nlm.nih.gov/12345678/"}},
+        {{"name": "Another actual study title", "url": "https://doi.org/10.1234/example"}}
       ]
     }}
   ]
@@ -811,9 +811,9 @@ The meal plan should only contain breakfast, lunch, dinner and 1 snack.
 CRITICAL: 
 - Each item should be part of a programme that you are giving the user. Each item should therefore have enough detail for the user to carry out the activity without any outside help.
 - For Movement cards: Do NOT include warm-ups or cool-downs. Focus only on the main exercise routine.
-- For Nutrition cards: ALWAYS structure as "BREAKFAST: ...", "LUNCH: ...", "DINNER: ...", "SNACK: ..." for easy parsing into subheadings.
+- For Nutrition cards: ALWAYS structure as "Breakfast: ...", "Lunch: ...", "Dinner: ...", "Snack: ..." for easy parsing into subheadings.
 - Descriptions should reference Emma's actual data patterns and be personalized
-- Sources should be objects with "name" (descriptive paper title) and "url" (actual PubMed/DOI link) properties
+- Sources MUST be real, existing research papers. You must provide the exact title of an actual published study along with its correct corresponding URL. Verify that the title and URL match the same study. Use real PubMed URLs or DOI links that actually lead to the cited paper
 - Your response must be valid JSON only. No explanatory text. No markdown. Just JSON."""
 
         try:
