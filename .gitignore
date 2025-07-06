@@ -212,6 +212,69 @@ docs/build/
 docs/.docusaurus/
 
 # ==============================================
+# Python / Data Science
+# ==============================================
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Python virtual environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.venv/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# pyenv
+.python-version
+
+# pipenv
+Pipfile.lock
+
+# Poetry
+poetry.lock
+dist/
+*.egg-info/
+
+# Data files and directories
+aurient_data/data/
+data/
+datasets/
+*.csv
+*.json
+*.parquet
+*.pkl
+*.pickle
+*.h5
+*.hdf5
+*.sqlite
+*.db
+
+# Health data files
+health_data/
+oura_data/
+whoop_data/
+apple_health_data/
+
+# Model files
+models/
+*.model
+*.joblib
+*.sav
+
+# Matplotlib
+.matplotlib/
+
+# ==============================================
 # Miscellaneous
 # ==============================================
 # Sentry
