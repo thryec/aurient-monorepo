@@ -1,13 +1,19 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { healthDataService, HealthAnalysisResponse, StructuredAdvice, Recommendation } from '@/lib/healthDataService';
+import { useState, useEffect } from "react";
+import {
+  healthDataService,
+  HealthAnalysisResponse,
+  StructuredAdvice,
+  Recommendation,
+} from "@/lib/healthDataService";
 import Header from "../../components/navigation/Header";
 
-const OVERVIEW_CACHE_KEY = 'aurient_health_overview_cache';
+const OVERVIEW_CACHE_KEY = "aurient_health_overview_cache";
 
 export default function OverviewPage() {
-  const [analysisData, setAnalysisData] = useState<HealthAnalysisResponse | null>(null);
+  const [analysisData, setAnalysisData] =
+    useState<HealthAnalysisResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showResults, setShowResults] = useState(false);
@@ -23,19 +29,19 @@ export default function OverviewPage() {
           // Check if cache is less than 24 hours old
           const cacheAge = Date.now() - cachedData.timestamp;
           const maxAge = 24 * 60 * 60 * 1000; // 24 hours
-          
+
           if (cacheAge < maxAge) {
             setAnalysisData(cachedData.data);
             setShowResults(true);
             setIsFromCache(true);
-            console.log('Loaded cached health overview');
+            console.log("Loaded cached health overview");
           } else {
             // Clear expired cache
             localStorage.removeItem(OVERVIEW_CACHE_KEY);
           }
         }
       } catch (error) {
-        console.error('Error loading cached data:', error);
+        console.error("Error loading cached data:", error);
         localStorage.removeItem(OVERVIEW_CACHE_KEY);
       }
     };
@@ -48,31 +54,34 @@ export default function OverviewPage() {
     try {
       const cacheData = {
         data: data,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
       localStorage.setItem(OVERVIEW_CACHE_KEY, JSON.stringify(cacheData));
     } catch (error) {
-      console.error('Error saving to cache:', error);
+      console.error("Error saving to cache:", error);
     }
   };
 
   const generateOverviewRecommendations = async () => {
     setLoading(true);
     setError(null);
-    
+
     try {
-      const response = await healthDataService.generateOverviewRecommendations();
+      const response =
+        await healthDataService.generateOverviewRecommendations();
       setAnalysisData(response);
-      
+
       if (response.success) {
         setShowResults(true);
         setIsFromCache(false);
         saveToCache(response); // Cache the successful response
       } else {
-        setError(response.error || 'Failed to generate recommendations');
+        setError(response.error || "Failed to generate recommendations");
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An unexpected error occurred');
+      setError(
+        err instanceof Error ? err.message : "An unexpected error occurred"
+      );
     } finally {
       setLoading(false);
     }
@@ -90,13 +99,19 @@ export default function OverviewPage() {
     <div key={index} className="mb-6 p-4 bg-gray-50 rounded-lg">
       <h4 className="font-medium text-gray-900 mb-2">{rec.title}</h4>
       <p className="text-gray-700 font-light mb-3">{rec.description}</p>
-      <p className="text-sm text-gray-600 font-light italic mb-3">{rec.reasoning}</p>
+      <p className="text-sm text-gray-600 font-light italic mb-3">
+        {rec.reasoning}
+      </p>
       {rec.actionable_steps && rec.actionable_steps.length > 0 && (
         <div>
-          <p className="text-sm font-medium text-gray-900 mb-2">Action Steps:</p>
+          <p className="text-sm font-medium text-gray-900 mb-2">
+            Action Steps:
+          </p>
           <ul className="list-disc pl-5 space-y-1">
             {rec.actionable_steps.map((step, stepIndex) => (
-              <li key={stepIndex} className="text-sm text-gray-700 font-light">{step}</li>
+              <li key={stepIndex} className="text-sm text-gray-700 font-light">
+                {step}
+              </li>
             ))}
           </ul>
         </div>
@@ -106,21 +121,31 @@ export default function OverviewPage() {
 
   const renderStructuredAdviceCards = (structuredAdvice: StructuredAdvice) => {
     const sections = [
-      { key: 'behavioral', data: structuredAdvice.sections.behavioral },
-      { key: 'exercise', data: structuredAdvice.sections.exercise },
-      { key: 'nutrition', data: structuredAdvice.sections.nutrition },
-      { key: 'supplementation', data: structuredAdvice.sections.supplementation }
+      { key: "behavioral", data: structuredAdvice.sections.behavioral },
+      { key: "exercise", data: structuredAdvice.sections.exercise },
+      { key: "nutrition", data: structuredAdvice.sections.nutrition },
+      {
+        key: "supplementation",
+        data: structuredAdvice.sections.supplementation,
+      },
     ];
 
     return (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {sections.map(({ key, data }) => (
-          <div key={key} className="bg-white/90 backdrop-blur-sm rounded-2xl p-8 border border-gray-200 shadow-lg">
+          <div
+            key={key}
+            className="bg-white/90 backdrop-blur-sm rounded-2xl p-8 border border-gray-200 shadow-lg"
+          >
             <div className="flex items-center gap-3 mb-6">
-              <h3 className="text-2xl font-light text-gray-900">{data.title}</h3>
+              <h3 className="text-2xl font-light text-gray-900">
+                {data.title}
+              </h3>
             </div>
             <div className="space-y-4">
-              {data.recommendations.map((rec, index) => renderRecommendation(rec, index))}
+              {data.recommendations.map((rec, index) =>
+                renderRecommendation(rec, index)
+              )}
             </div>
           </div>
         ))}
@@ -131,7 +156,7 @@ export default function OverviewPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-200 via-pink-200 via-orange-200 to-yellow-300 relative overflow-hidden">
       <Header />
-      
+
       <div className="w-full flex flex-col items-center justify-start py-16 px-4">
         {!showResults ? (
           // Initial state - similar to insights page
@@ -142,7 +167,7 @@ export default function OverviewPage() {
             <p className="text-xl md:text-2xl text-gray-700 font-light mb-8">
               comprehensive AI-powered health insights
             </p>
-            
+
             <button
               onClick={generateOverviewRecommendations}
               disabled={loading}
@@ -172,9 +197,12 @@ export default function OverviewPage() {
                   <div className="flex flex-col items-center gap-4">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
                     <div className="text-center">
-                      <h3 className="font-medium text-gray-900 mb-2">Analyzing Your Health Data</h3>
+                      <h3 className="font-medium text-gray-900 mb-2">
+                        Analyzing Your Health Data
+                      </h3>
                       <p className="text-gray-600 font-light">
-                        AI is processing your Oura Ring data to generate personalized recommendations...
+                        AI is processing your Oura Ring data to generate
+                        personalized recommendations...
                       </p>
                     </div>
                   </div>
@@ -188,25 +216,35 @@ export default function OverviewPage() {
             {/* Header */}
             <div className="text-center mb-12">
               <h1 className="text-4xl md:text-5xl font-light text-gray-900 mb-4 tracking-tight">
-                Emma's Personalized Health Advice
+                Emma&apos;s Personalized Health Advice
               </h1>
             </div>
 
             {analysisData?.success && analysisData.data && (
               <div className="space-y-8">
                 {/* AI Recommendations */}
-                {analysisData.data.structured_advice && 'sections' in analysisData.data.structured_advice ? (
+                {analysisData.data.structured_advice &&
+                "sections" in analysisData.data.structured_advice ? (
                   <>
-                    {renderStructuredAdviceCards(analysisData.data.structured_advice as StructuredAdvice)}
+                    {renderStructuredAdviceCards(
+                      analysisData.data.structured_advice as StructuredAdvice
+                    )}
                   </>
                 ) : (
                   <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-8 border border-gray-200 shadow-lg">
-                    <h2 className="text-2xl font-light text-gray-900 mb-6">Health Recommendations</h2>
+                    <h2 className="text-2xl font-light text-gray-900 mb-6">
+                      Health Recommendations
+                    </h2>
                     <div className="text-gray-700">
                       {analysisData.data.structured_advice?.error ? (
-                        <p>Error: {analysisData.data.structured_advice.error}</p>
+                        <p>
+                          Error: {analysisData.data.structured_advice.error}
+                        </p>
                       ) : (
-                        <p>Unable to load structured recommendations. Please try again.</p>
+                        <p>
+                          Unable to load structured recommendations. Please try
+                          again.
+                        </p>
                       )}
                     </div>
                   </div>

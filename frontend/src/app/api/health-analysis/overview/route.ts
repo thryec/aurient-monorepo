@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { exec } from "child_process";
 import { promisify } from "util";
 import path from "path";
+import { writeFile, unlink } from "fs/promises";
 
 const execAsync = promisify(exec);
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     // Path to the aurient_data directory
     const aurientDataPath = path.join(process.cwd(), "..", "aurient_data");
@@ -78,7 +79,6 @@ except Exception as e:
 `;
 
     // Write Python script to temporary file
-    const { writeFile, unlink } = require("fs").promises;
     const tmpFile = path.join(process.cwd(), "tmp_overview_script.py");
     await writeFile(tmpFile, pythonScript);
 
