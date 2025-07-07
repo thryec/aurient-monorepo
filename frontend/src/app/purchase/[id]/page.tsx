@@ -36,7 +36,7 @@ function transformListing(listing: any): MarketplaceListing {
 const PurchaseFlow = () => {
   const router = useRouter();
   const params = useParams();
-  const { isConnected, isOnStoryNetwork, getBalance } = useWallet();
+  const { isConnected, isOnStoryNetwork, getBalance, address } = useWallet();
   const {
     activeListings,
     loadActiveListings,
@@ -116,6 +116,14 @@ const PurchaseFlow = () => {
   const priceInIP = listing ? parseFloat(listing.price.split(" ")[0]) : 0;
   const hasEnoughBalance = parseFloat(balance) >= priceInIP;
 
+  // Check if the current user is the seller
+  const isOwnListing = Boolean(
+    isConnected &&
+      address &&
+      listing?.seller &&
+      address.toLowerCase() === listing.seller.toLowerCase()
+  );
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-orange-200 via-pink-200 via-purple-300 to-blue-500 flex items-center justify-center">
@@ -170,6 +178,24 @@ const PurchaseFlow = () => {
           <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-8 md:p-12 shadow-lg">
             {!transaction.isSuccess ? (
               <>
+                {/* Seller Alert */}
+                {isOwnListing && (
+                  <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
+                    <div className="flex items-center gap-3">
+                      <AlertTriangle className="w-5 h-5 text-red-600" />
+                      <div>
+                        <p className="font-medium text-red-900">
+                          Cannot Purchase Your Own Listing
+                        </p>
+                        <p className="text-sm text-red-700">
+                          You cannot purchase a license for your own listing.
+                          This listing was created by your wallet address.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Listing Details */}
                 <div className="mb-8">
                   <h1 className="text-3xl md:text-4xl font-light text-gray-900 mb-4">
@@ -285,7 +311,7 @@ const PurchaseFlow = () => {
                       <h3 className="font-medium text-gray-900 mb-4">
                         Purchase Summary
                       </h3>
-                      <div className="space-y-3 text-sm">
+                      <div className="space-y-3 text-sm text-gray-900">
                         <div className="flex justify-between">
                           <span>License Price:</span>
                           <span className="font-medium">{listing.price}</span>
@@ -314,7 +340,8 @@ const PurchaseFlow = () => {
                           disabled={
                             !hasEnoughBalance ||
                             !isOnStoryNetwork ||
-                            transaction.isPending
+                            transaction.isPending ||
+                            isOwnListing
                           }
                           className="bg-gray-900 text-white px-8 py-4 rounded-full font-light text-lg hover:bg-gray-800 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
