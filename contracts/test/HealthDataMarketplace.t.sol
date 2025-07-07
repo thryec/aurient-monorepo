@@ -444,6 +444,79 @@ contract StateTwoTest is StateTwo {
         marketplace.claimEarnings(ipId);
     }
 
+    function testCannotPurchaseOwnListing() public {
+        // Alice tries to purchase her own listing
+        vm.prank(alice);
+        vm.expectRevert(
+            HealthDataMarketplace.CannotPurchaseOwnListing.selector
+        );
+        marketplace.purchaseLicense{value: PRICE_50_IP}(listingId);
+    }
+
+    function testClaimEarningsBatch() public {
+        // Setup: Create multiple IPs for Alice
+        vm.startPrank(alice);
+        (address ipId1, , ) = marketplace.registerHealthDataIP(
+            DATA_TYPE_SLEEP,
+            IPFS_HASH_1,
+            PRICE_50_IP,
+            QUALITY_METRICS_1
+        );
+        (address ipId2, , ) = marketplace.registerHealthDataIP(
+            DATA_TYPE_HRV,
+            IPFS_HASH_2,
+            PRICE_100_IP,
+            QUALITY_METRICS_2
+        );
+        vm.stopPrank();
+
+        // Purchase licenses to generate earnings
+        vm.prank(charlie);
+        marketplace.purchaseLicense{value: PRICE_50_IP}(1);
+        vm.prank(bob);
+        marketplace.purchaseLicense{value: PRICE_100_IP}(2);
+
+        // Verify vaults are deployed
+        address vault1 = ROYALTY_MODULE.ipRoyaltyVaults(ipId1);
+        address vault2 = ROYALTY_MODULE.ipRoyaltyVaults(ipId2);
+        assertTrue(vault1 != address(0), "Vault1 should be deployed");
+        assertTrue(vault2 != address(0), "Vault2 should be deployed");
+
+        // Check balances before claiming
+        uint256 balanceBefore1 = WIP_TOKEN.balanceOf(ipId1);
+        uint256 balanceBefore2 = WIP_TOKEN.balanceOf(ipId2);
+
+        // Claim earnings for both IPs in batch
+        vm.prank(alice);
+        address[] memory ipIds = new address[](2);
+        ipIds[0] = ipId1;
+        ipIds[1] = ipId2;
+        marketplace.claimEarningsBatch(ipIds);
+
+        // Verify earnings were claimed
+        uint256 balanceAfter1 = WIP_TOKEN.balanceOf(ipId1);
+        uint256 balanceAfter2 = WIP_TOKEN.balanceOf(ipId2);
+        assertGt(
+            balanceAfter1 - balanceBefore1,
+            0,
+            "Should have claimed earnings for IP1"
+        );
+        assertGt(
+            balanceAfter2 - balanceBefore2,
+            0,
+            "Should have claimed earnings for IP2"
+        );
+    }
+
+    function testClaimEarningsBatchNotOwner() public {
+        // Bob tries to claim Alice's earnings in batch
+        vm.prank(bob);
+        address[] memory ipIds = new address[](1);
+        ipIds[0] = ipId;
+        vm.expectRevert(HealthDataMarketplace.NotIPOwner.selector);
+        marketplace.claimEarningsBatch(ipIds);
+    }
+
     function testWithdrawPlatformFees() public {
         address owner = marketplace.owner();
         uint256 ownerInitialBalance = owner.balance;

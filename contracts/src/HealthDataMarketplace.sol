@@ -43,6 +43,7 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
     error ZeroAddress();
     error NoEarningsToClaim();
     error NotIPOwner();
+    error CannotPurchaseOwnListing();
 
     // Structs
     struct Listing {
@@ -280,6 +281,7 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
         Listing storage listing = listings[listingId];
         if (listing.listingId == 0) revert ListingNotFound();
         if (!listing.active) revert ListingNotActive();
+        if (msg.sender == listing.seller) revert CannotPurchaseOwnListing();
 
         uint256 totalAmount = listing.priceIP;
         if (msg.value < totalAmount) revert InsufficientPayment();
@@ -355,6 +357,40 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
         if (amount == 0) revert NoEarningsToClaim();
 
         emit EarningsClaimed(ipId, owner, amount);
+    }
+
+    /**
+     * @dev Claim earnings for multiple IPs owned by the same user
+     * @param ipIds Array of IP asset IDs
+     */
+    function claimEarningsBatch(
+        address[] calldata ipIds
+    ) external nonReentrant {
+        uint256 totalClaimed = 0;
+        address caller = msg.sender;
+
+        for (uint256 i = 0; i < ipIds.length; i++) {
+            address ipId = ipIds[i];
+
+            // Verify caller is IP owner
+            address owner = IIPAccount(payable(ipId)).owner();
+            if (caller != owner) revert NotIPOwner();
+
+            // Get royalty vault
+            address vault = royaltyModule.ipRoyaltyVaults(ipId);
+            if (vault != address(0)) {
+                // Claim WIP tokens directly from vault
+                uint256 amount = IIpRoyaltyVault(vault).claimRevenueOnBehalf(
+                    ipId,
+                    address(WIP_TOKEN)
+                );
+                totalClaimed += amount;
+            }
+        }
+
+        if (totalClaimed == 0) revert NoEarningsToClaim();
+
+        emit EarningsClaimed(address(0), caller, totalClaimed);
     }
 
     /**
