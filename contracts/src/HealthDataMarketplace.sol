@@ -498,6 +498,48 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
         return isCollectionInitialized;
     }
 
+    /**
+     * @dev Get claimable earnings for an IP owner
+     * @param ipId The IP asset ID
+     * @return amount The amount of WIP tokens that can be claimed
+     */
+    function getClaimableEarnings(
+        address ipId
+    ) external view returns (uint256) {
+        // Get royalty vault
+        address vault = royaltyModule.ipRoyaltyVaults(ipId);
+        if (vault == address(0)) {
+            return 0; // No vault deployed means no earnings
+        }
+
+        // Get claimable revenue from vault
+        return
+            IIpRoyaltyVault(vault).claimableRevenue(ipId, address(WIP_TOKEN));
+    }
+
+    /**
+     * @dev Get claimable earnings for multiple IPs owned by a user
+     * @param ipIds Array of IP asset IDs
+     * @return amounts Array of claimable amounts for each IP
+     */
+    function getClaimableEarningsBatch(
+        address[] calldata ipIds
+    ) external view returns (uint256[] memory amounts) {
+        amounts = new uint256[](ipIds.length);
+
+        for (uint256 i = 0; i < ipIds.length; i++) {
+            address vault = royaltyModule.ipRoyaltyVaults(ipIds[i]);
+            if (vault != address(0)) {
+                amounts[i] = IIpRoyaltyVault(vault).claimableRevenue(
+                    ipIds[i],
+                    address(WIP_TOKEN)
+                );
+            }
+        }
+
+        return amounts;
+    }
+
     // Internal Functions
 
     /**

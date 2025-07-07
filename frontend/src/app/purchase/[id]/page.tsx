@@ -89,7 +89,6 @@ const PurchaseFlow = () => {
     if (!listing || !isConnected) return;
     setTransaction({ isPending: true, isSuccess: false, isError: false });
     try {
-      // Use the real purchaseLicense function
       const tx = await purchaseLicense({
         listingId: Number(listing.id),
         value: BigInt(
@@ -132,6 +131,80 @@ const PurchaseFlow = () => {
           <h2 className="text-2xl font-light text-gray-900 mb-4">
             Loading listing...
           </h2>
+        </div>
+      </div>
+    );
+  }
+
+  // Show transaction result if completed, even if listing is gone
+  if ((transaction.isSuccess || transaction.isError) && !listing) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-orange-200 via-pink-200 via-purple-300 to-blue-500 flex items-center justify-center">
+        <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-12 text-center shadow-lg max-w-lg w-full">
+          {transaction.isSuccess ? (
+            <>
+              <div className="flex justify-center mb-6">
+                <CheckCircle className="w-16 h-16 text-green-500" />
+              </div>
+              <h2 className="text-3xl font-light text-gray-900 mb-4">
+                License Purchased Successfully!
+              </h2>
+              <p className="text-lg text-gray-700 mb-6">
+                Your purchase was successful. You can view the transaction
+                below.
+              </p>
+              {transaction.txHash && (
+                <div className="mb-6">
+                  <span className="text-gray-700">Transaction Hash: </span>
+                  <a
+                    href={`https://aeneid.story.foundation/tx/${transaction.txHash}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-700 underline break-all"
+                  >
+                    {transaction.txHash}
+                  </a>
+                </div>
+              )}
+              <button
+                onClick={() => router.push("/marketplace")}
+                className="bg-gray-900 text-white px-6 py-3 rounded-full font-light hover:bg-gray-800 transition-all duration-300"
+              >
+                Back to Marketplace
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="flex justify-center mb-6">
+                <AlertTriangle className="w-16 h-16 text-red-500" />
+              </div>
+              <h2 className="text-3xl font-light text-gray-900 mb-4">
+                Purchase Failed
+              </h2>
+              <p className="text-lg text-gray-700 mb-6">
+                {transaction.error || "Transaction failed. Please try again."}
+              </p>
+              {transaction.txHash && (
+                <div className="mb-6">
+                  <span className="text-gray-700">Transaction Hash: </span>
+                  <a
+                    href={`https://aeneid.storyscan.io/tx/${transaction.txHash}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-700 underline break-all"
+                  >
+                    {transaction.txHash}
+                  </a>
+                </div>
+              )}
+              <button
+                onClick={() => router.push("/marketplace")}
+                className="bg-gray-900 text-white px-6 py-3 rounded-full font-light hover:bg-gray-800 transition-all duration-300"
+              >
+                Back to Marketplace
+              </button>
+            </>
+          )}
         </div>
       </div>
     );

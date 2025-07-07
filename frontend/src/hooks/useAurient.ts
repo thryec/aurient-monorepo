@@ -149,14 +149,24 @@ export function useAurient() {
         args: [address],
       })) as Listing[];
 
+      // Calculate claimable earnings for all user's IPs
+      let totalClaimableEarnings = "0";
+      if (userListings.length > 0) {
+        const ipIds = userListings.map((listing) => listing.ipId);
+        const claimableAmounts = await getClaimableEarningsBatch(ipIds);
+        const totalAmount = claimableAmounts.reduce((sum, amount) => {
+          return sum + parseFloat(amount);
+        }, 0);
+        totalClaimableEarnings = totalAmount.toString();
+      }
+
       // Calculate total earnings (this would need to be implemented based on royalty claims)
       const totalEarnings = "0"; // TODO: Implement royalty calculation
-      const claimableEarnings = "0"; // TODO: Implement claimable earnings calculation
 
       setUserHealthData({
         listings: userListings,
         totalEarnings,
-        claimableEarnings,
+        claimableEarnings: totalClaimableEarnings,
       });
 
       // Update marketplace data with user listings count
@@ -455,6 +465,44 @@ export function useAurient() {
     }
   };
 
+  const getClaimableEarnings = async (ipId: string): Promise<string> => {
+    if (!publicClient) return "0";
+
+    try {
+      const earnings = (await publicClient.readContract({
+        address: CONTRACT_CONFIG.HEALTH_DATA_MARKETPLACE_ADDRESS,
+        abi: HEALTH_DATA_MARKETPLACE_ABI,
+        functionName: "getClaimableEarnings",
+        args: [ipId],
+      })) as bigint;
+
+      return formatEther(earnings);
+    } catch (error) {
+      console.error("Failed to get claimable earnings:", error);
+      return "0";
+    }
+  };
+
+  const getClaimableEarningsBatch = async (
+    ipIds: string[]
+  ): Promise<string[]> => {
+    if (!publicClient || ipIds.length === 0) return [];
+
+    try {
+      const earnings = (await publicClient.readContract({
+        address: CONTRACT_CONFIG.HEALTH_DATA_MARKETPLACE_ADDRESS,
+        abi: HEALTH_DATA_MARKETPLACE_ABI,
+        functionName: "getClaimableEarningsBatch",
+        args: [ipIds],
+      })) as bigint[];
+
+      return earnings.map((earning) => formatEther(earning));
+    } catch (error) {
+      console.error("Failed to get claimable earnings batch:", error);
+      return ipIds.map(() => "0");
+    }
+  };
+
   return {
     // State
     loading,
@@ -473,6 +521,8 @@ export function useAurient() {
     getListingsByDataType,
     getHealthDataMetadata,
     getLicensePrice,
+    getClaimableEarnings,
+    getClaimableEarningsBatch,
 
     // Data loading
     loadMarketplaceData,
