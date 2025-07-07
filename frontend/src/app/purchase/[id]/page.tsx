@@ -43,6 +43,7 @@ const PurchaseFlow = () => {
     purchaseLicense,
     loading,
     statusMessage,
+    getHealthDataMetadata,
   } = useAurient();
 
   const [listing, setListing] = useState<MarketplaceListing | null>(null);
@@ -54,6 +55,17 @@ const PurchaseFlow = () => {
   });
   const [licenseTokenId, setLicenseTokenId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [ipfsHash, setIpfsHash] = useState<string | null>(null);
+
+  // Function to extract IPFS hash from metadata URI
+  const extractIpfsHash = (metadataUri: string): string | null => {
+    if (!metadataUri || !metadataUri.startsWith("ipfs://")) {
+      return null;
+    }
+    // Extract hash from ipfs://{hash}/path format
+    const match = metadataUri.match(/^ipfs:\/\/([^\/]+)/);
+    return match ? match[1] : null;
+  };
 
   // Load listings and find the one by ID
   useEffect(() => {
@@ -65,9 +77,28 @@ const PurchaseFlow = () => {
     const found = activeListings.find(
       (l) => l.listingId?.toString?.() === params.id
     );
-    setListing(found ? transformListing(found) : null);
+    const transformedListing = found ? transformListing(found) : null;
+    setListing(transformedListing);
     setIsLoading(false);
   }, [activeListings, params.id, loadActiveListings]);
+
+  // Fetch IPFS hash when listing changes
+  useEffect(() => {
+    if (listing?.ipId) {
+      const fetchIpfsHash = async () => {
+        try {
+          const metadata = await getHealthDataMetadata(listing.ipId);
+          if (metadata?.ipMetadataURI) {
+            const hash = extractIpfsHash(metadata.ipMetadataURI);
+            setIpfsHash(hash);
+          }
+        } catch (error) {
+          console.error("Failed to fetch IPFS hash:", error);
+        }
+      };
+      fetchIpfsHash();
+    }
+  }, [listing?.ipId]);
 
   useEffect(() => {
     const loadBalance = async () => {
@@ -450,7 +481,7 @@ const PurchaseFlow = () => {
                   <h3 className="font-medium text-gray-900 mb-4">
                     Your License Details
                   </h3>
-                  <div className="space-y-3 text-sm">
+                  <div className="space-y-3 text-sm text-gray-900">
                     <div className="flex justify-between">
                       <span>License Token ID:</span>
                       <span className="font-mono">{licenseTokenId}</span>
@@ -479,9 +510,15 @@ const PurchaseFlow = () => {
                     <p>1. Your license token has been minted to your wallet</p>
                     <p>
                       2. Access the data using the IPFS hash:{" "}
-                      <code className="bg-white px-2 py-1 rounded">
-                        QmXXX...{listing.id}
-                      </code>
+                      {ipfsHash ? (
+                        <code className="bg-white px-2 py-1 rounded">
+                          {ipfsHash}
+                        </code>
+                      ) : (
+                        <span className="text-gray-500 italic">
+                          Loading IPFS hash...
+                        </span>
+                      )}
                     </p>
                     <p>
                       3. Review the license terms for proper attribution
@@ -506,7 +543,18 @@ const PurchaseFlow = () => {
                   >
                     Browse More Data
                   </button>
-                  <button className="bg-gray-100 text-gray-700 px-6 py-3 rounded-full font-light hover:bg-gray-200 transition-all duration-300 flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      if (transaction.txHash) {
+                        window.open(
+                          `https://aeneid.storyscan.io/tx/${transaction.txHash}`,
+                          "_blank"
+                        );
+                      }
+                    }}
+                    disabled={!transaction.txHash}
+                    className="bg-gray-100 text-gray-700 px-6 py-3 rounded-full font-light hover:bg-gray-200 transition-all duration-300 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
                     <ExternalLink className="w-4 h-4" />
                     View on Story Explorer
                   </button>

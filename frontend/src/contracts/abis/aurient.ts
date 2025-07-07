@@ -32,11 +32,7 @@ export const AURIENT_ABI = [
         type: "address",
         internalType: "address",
       },
-      {
-        name: "_wipToken",
-        type: "address",
-        internalType: "address",
-      },
+      { name: "_wipToken", type: "address", internalType: "address" },
       {
         name: "_platformFeePercent",
         type: "uint256",
@@ -45,72 +41,46 @@ export const AURIENT_ABI = [
     ],
     stateMutability: "nonpayable",
   },
-  {
-    type: "receive",
-    stateMutability: "payable",
-  },
+  { type: "receive", stateMutability: "payable" },
   {
     type: "function",
     name: "COLLECTION_NAME",
     inputs: [],
-    outputs: [
-      {
-        name: "",
-        type: "string",
-        internalType: "string",
-      },
-    ],
+    outputs: [{ name: "", type: "string", internalType: "string" }],
     stateMutability: "view",
   },
   {
     type: "function",
     name: "COLLECTION_SYMBOL",
     inputs: [],
-    outputs: [
-      {
-        name: "",
-        type: "string",
-        internalType: "string",
-      },
-    ],
+    outputs: [{ name: "", type: "string", internalType: "string" }],
     stateMutability: "view",
   },
   {
     type: "function",
     name: "MAX_SUPPLY",
     inputs: [],
-    outputs: [
-      {
-        name: "",
-        type: "uint32",
-        internalType: "uint32",
-      },
-    ],
+    outputs: [{ name: "", type: "uint32", internalType: "uint32" }],
     stateMutability: "view",
   },
   {
     type: "function",
     name: "WIP_TOKEN",
     inputs: [],
-    outputs: [
-      {
-        name: "",
-        type: "address",
-        internalType: "contract IWIP",
-      },
-    ],
+    outputs: [{ name: "", type: "address", internalType: "contract IWIP" }],
     stateMutability: "view",
   },
   {
     type: "function",
     name: "claimEarnings",
-    inputs: [
-      {
-        name: "ipId",
-        type: "address",
-        internalType: "address",
-      },
-    ],
+    inputs: [{ name: "ipId", type: "address", internalType: "address" }],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "claimEarningsBatch",
+    inputs: [{ name: "ipIds", type: "address[]", internalType: "address[]" }],
     outputs: [],
     stateMutability: "nonpayable",
   },
@@ -136,31 +106,11 @@ export const AURIENT_ABI = [
             type: "uint256",
             internalType: "uint256",
           },
-          {
-            name: "seller",
-            type: "address",
-            internalType: "address",
-          },
-          {
-            name: "ipId",
-            type: "address",
-            internalType: "address",
-          },
-          {
-            name: "priceIP",
-            type: "uint256",
-            internalType: "uint256",
-          },
-          {
-            name: "dataType",
-            type: "string",
-            internalType: "string",
-          },
-          {
-            name: "active",
-            type: "bool",
-            internalType: "bool",
-          },
+          { name: "seller", type: "address", internalType: "address" },
+          { name: "ipId", type: "address", internalType: "address" },
+          { name: "priceIP", type: "uint256", internalType: "uint256" },
+          { name: "dataType", type: "string", internalType: "string" },
+          { name: "active", type: "bool", internalType: "bool" },
           {
             name: "createdAt",
             type: "uint256",
@@ -173,71 +123,45 @@ export const AURIENT_ABI = [
   },
   {
     type: "function",
-    name: "getLicensePrice",
-    inputs: [
-      {
-        name: "ipId",
-        type: "address",
-        internalType: "address",
-      },
-    ],
+    name: "getClaimableEarnings",
+    inputs: [{ name: "ipId", type: "address", internalType: "address" }],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "getClaimableEarningsBatch",
+    inputs: [{ name: "ipIds", type: "address[]", internalType: "address[]" }],
     outputs: [
-      {
-        name: "",
-        type: "uint256",
-        internalType: "uint256",
-      },
+      { name: "amounts", type: "uint256[]", internalType: "uint256[]" },
     ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "getLicensePrice",
+    inputs: [{ name: "ipId", type: "address", internalType: "address" }],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
     stateMutability: "view",
   },
   {
     type: "function",
     name: "getLicenseTermsId",
-    inputs: [
-      {
-        name: "ipId",
-        type: "address",
-        internalType: "address",
-      },
-    ],
-    outputs: [
-      {
-        name: "",
-        type: "uint256",
-        internalType: "uint256",
-      },
-    ],
+    inputs: [{ name: "ipId", type: "address", internalType: "address" }],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
     stateMutability: "view",
   },
   {
     type: "function",
     name: "getLicenseTokenId",
-    inputs: [
-      {
-        name: "ipId",
-        type: "address",
-        internalType: "address",
-      },
-    ],
-    outputs: [
-      {
-        name: "",
-        type: "uint256",
-        internalType: "uint256",
-      },
-    ],
+    inputs: [{ name: "ipId", type: "address", internalType: "address" }],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
     stateMutability: "view",
   },
   {
     type: "function",
     name: "getListingsByDataType",
-    inputs: [
-      {
-        name: "dataType",
-        type: "string",
-        internalType: "string",
-      },
-    ],
+    inputs: [{ name: "dataType", type: "string", internalType: "string" }],
     outputs: [
       {
         name: "",
@@ -249,31 +173,11 @@ export const AURIENT_ABI = [
             type: "uint256",
             internalType: "uint256",
           },
-          {
-            name: "seller",
-            type: "address",
-            internalType: "address",
-          },
-          {
-            name: "ipId",
-            type: "address",
-            internalType: "address",
-          },
-          {
-            name: "priceIP",
-            type: "uint256",
-            internalType: "uint256",
-          },
-          {
-            name: "dataType",
-            type: "string",
-            internalType: "string",
-          },
-          {
-            name: "active",
-            type: "bool",
-            internalType: "bool",
-          },
+          { name: "seller", type: "address", internalType: "address" },
+          { name: "ipId", type: "address", internalType: "address" },
+          { name: "priceIP", type: "uint256", internalType: "uint256" },
+          { name: "dataType", type: "string", internalType: "string" },
+          { name: "active", type: "bool", internalType: "bool" },
           {
             name: "createdAt",
             type: "uint256",
@@ -287,13 +191,7 @@ export const AURIENT_ABI = [
   {
     type: "function",
     name: "getUserListings",
-    inputs: [
-      {
-        name: "user",
-        type: "address",
-        internalType: "address",
-      },
-    ],
+    inputs: [{ name: "user", type: "address", internalType: "address" }],
     outputs: [
       {
         name: "",
@@ -305,31 +203,11 @@ export const AURIENT_ABI = [
             type: "uint256",
             internalType: "uint256",
           },
-          {
-            name: "seller",
-            type: "address",
-            internalType: "address",
-          },
-          {
-            name: "ipId",
-            type: "address",
-            internalType: "address",
-          },
-          {
-            name: "priceIP",
-            type: "uint256",
-            internalType: "uint256",
-          },
-          {
-            name: "dataType",
-            type: "string",
-            internalType: "string",
-          },
-          {
-            name: "active",
-            type: "bool",
-            internalType: "bool",
-          },
+          { name: "seller", type: "address", internalType: "address" },
+          { name: "ipId", type: "address", internalType: "address" },
+          { name: "priceIP", type: "uint256", internalType: "uint256" },
+          { name: "dataType", type: "string", internalType: "string" },
+          { name: "active", type: "bool", internalType: "bool" },
           {
             name: "createdAt",
             type: "uint256",
@@ -344,31 +222,15 @@ export const AURIENT_ABI = [
     type: "function",
     name: "healthDataCollection",
     inputs: [],
-    outputs: [
-      {
-        name: "",
-        type: "address",
-        internalType: "contract ISPGNFT",
-      },
-    ],
+    outputs: [{ name: "", type: "address", internalType: "contract ISPGNFT" }],
     stateMutability: "view",
   },
   {
     type: "function",
     name: "healthDataMetadata",
-    inputs: [
-      {
-        name: "",
-        type: "address",
-        internalType: "address",
-      },
-    ],
+    inputs: [{ name: "", type: "address", internalType: "address" }],
     outputs: [
-      {
-        name: "ipMetadataURI",
-        type: "string",
-        internalType: "string",
-      },
+      { name: "ipMetadataURI", type: "string", internalType: "string" },
       {
         name: "ipMetadataHash",
         type: "bytes32",
@@ -384,16 +246,8 @@ export const AURIENT_ABI = [
         type: "bytes32",
         internalType: "bytes32",
       },
-      {
-        name: "dataType",
-        type: "string",
-        internalType: "string",
-      },
-      {
-        name: "qualityMetrics",
-        type: "string",
-        internalType: "string",
-      },
+      { name: "dataType", type: "string", internalType: "string" },
+      { name: "qualityMetrics", type: "string", internalType: "string" },
     ],
     stateMutability: "view",
   },
@@ -407,65 +261,29 @@ export const AURIENT_ABI = [
   {
     type: "function",
     name: "ipToLicenseTermsId",
-    inputs: [
-      {
-        name: "",
-        type: "address",
-        internalType: "address",
-      },
-    ],
-    outputs: [
-      {
-        name: "",
-        type: "uint256",
-        internalType: "uint256",
-      },
-    ],
+    inputs: [{ name: "", type: "address", internalType: "address" }],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
     stateMutability: "view",
   },
   {
     type: "function",
     name: "ipToLicenseTokenId",
-    inputs: [
-      {
-        name: "",
-        type: "address",
-        internalType: "address",
-      },
-    ],
-    outputs: [
-      {
-        name: "",
-        type: "uint256",
-        internalType: "uint256",
-      },
-    ],
+    inputs: [{ name: "", type: "address", internalType: "address" }],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
     stateMutability: "view",
   },
   {
     type: "function",
     name: "isCollectionInitialized",
     inputs: [],
-    outputs: [
-      {
-        name: "",
-        type: "bool",
-        internalType: "bool",
-      },
-    ],
+    outputs: [{ name: "", type: "bool", internalType: "bool" }],
     stateMutability: "view",
   },
   {
     type: "function",
     name: "isCollectionSetup",
     inputs: [],
-    outputs: [
-      {
-        name: "",
-        type: "bool",
-        internalType: "bool",
-      },
-    ],
+    outputs: [{ name: "", type: "bool", internalType: "bool" }],
     stateMutability: "view",
   },
   {
@@ -497,49 +315,15 @@ export const AURIENT_ABI = [
   {
     type: "function",
     name: "listings",
-    inputs: [
-      {
-        name: "",
-        type: "uint256",
-        internalType: "uint256",
-      },
-    ],
+    inputs: [{ name: "", type: "uint256", internalType: "uint256" }],
     outputs: [
-      {
-        name: "listingId",
-        type: "uint256",
-        internalType: "uint256",
-      },
-      {
-        name: "seller",
-        type: "address",
-        internalType: "address",
-      },
-      {
-        name: "ipId",
-        type: "address",
-        internalType: "address",
-      },
-      {
-        name: "priceIP",
-        type: "uint256",
-        internalType: "uint256",
-      },
-      {
-        name: "dataType",
-        type: "string",
-        internalType: "string",
-      },
-      {
-        name: "active",
-        type: "bool",
-        internalType: "bool",
-      },
-      {
-        name: "createdAt",
-        type: "uint256",
-        internalType: "uint256",
-      },
+      { name: "listingId", type: "uint256", internalType: "uint256" },
+      { name: "seller", type: "address", internalType: "address" },
+      { name: "ipId", type: "address", internalType: "address" },
+      { name: "priceIP", type: "uint256", internalType: "uint256" },
+      { name: "dataType", type: "string", internalType: "string" },
+      { name: "active", type: "bool", internalType: "bool" },
+      { name: "createdAt", type: "uint256", internalType: "uint256" },
     ],
     stateMutability: "view",
   },
@@ -547,50 +331,24 @@ export const AURIENT_ABI = [
     type: "function",
     name: "listingsByDataType",
     inputs: [
-      {
-        name: "",
-        type: "string",
-        internalType: "string",
-      },
-      {
-        name: "",
-        type: "uint256",
-        internalType: "uint256",
-      },
+      { name: "", type: "string", internalType: "string" },
+      { name: "", type: "uint256", internalType: "uint256" },
     ],
-    outputs: [
-      {
-        name: "",
-        type: "uint256",
-        internalType: "uint256",
-      },
-    ],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
     stateMutability: "view",
   },
   {
     type: "function",
     name: "nextListingId",
     inputs: [],
-    outputs: [
-      {
-        name: "",
-        type: "uint256",
-        internalType: "uint256",
-      },
-    ],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
     stateMutability: "view",
   },
   {
     type: "function",
     name: "owner",
     inputs: [],
-    outputs: [
-      {
-        name: "",
-        type: "address",
-        internalType: "address",
-      },
-    ],
+    outputs: [{ name: "", type: "address", internalType: "address" }],
     stateMutability: "view",
   },
   {
@@ -610,25 +368,13 @@ export const AURIENT_ABI = [
     type: "function",
     name: "platformFeePercent",
     inputs: [],
-    outputs: [
-      {
-        name: "",
-        type: "uint256",
-        internalType: "uint256",
-      },
-    ],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
     stateMutability: "view",
   },
   {
     type: "function",
     name: "purchaseLicense",
-    inputs: [
-      {
-        name: "listingId",
-        type: "uint256",
-        internalType: "uint256",
-      },
-    ],
+    inputs: [{ name: "listingId", type: "uint256", internalType: "uint256" }],
     outputs: [],
     stateMutability: "payable",
   },
@@ -636,38 +382,14 @@ export const AURIENT_ABI = [
     type: "function",
     name: "registerHealthDataIP",
     inputs: [
-      {
-        name: "dataType",
-        type: "string",
-        internalType: "string",
-      },
-      {
-        name: "ipfsHash",
-        type: "string",
-        internalType: "string",
-      },
-      {
-        name: "priceIP",
-        type: "uint256",
-        internalType: "uint256",
-      },
-      {
-        name: "qualityMetrics",
-        type: "string",
-        internalType: "string",
-      },
+      { name: "dataType", type: "string", internalType: "string" },
+      { name: "ipfsHash", type: "string", internalType: "string" },
+      { name: "priceIP", type: "uint256", internalType: "uint256" },
+      { name: "qualityMetrics", type: "string", internalType: "string" },
     ],
     outputs: [
-      {
-        name: "ipId",
-        type: "address",
-        internalType: "address",
-      },
-      {
-        name: "tokenId",
-        type: "uint256",
-        internalType: "uint256",
-      },
+      { name: "ipId", type: "address", internalType: "address" },
+      { name: "tokenId", type: "uint256", internalType: "uint256" },
       {
         name: "licenseTermsId",
         type: "uint256",
@@ -692,13 +414,7 @@ export const AURIENT_ABI = [
   {
     type: "function",
     name: "removeListing",
-    inputs: [
-      {
-        name: "listingId",
-        type: "uint256",
-        internalType: "uint256",
-      },
-    ],
+    inputs: [{ name: "listingId", type: "uint256", internalType: "uint256" }],
     outputs: [],
     stateMutability: "nonpayable",
   },
@@ -726,13 +442,7 @@ export const AURIENT_ABI = [
     type: "function",
     name: "royaltyPolicyLAP",
     inputs: [],
-    outputs: [
-      {
-        name: "",
-        type: "address",
-        internalType: "address",
-      },
-    ],
+    outputs: [{ name: "", type: "address", internalType: "address" }],
     stateMutability: "view",
   },
   {
@@ -751,26 +461,14 @@ export const AURIENT_ABI = [
   {
     type: "function",
     name: "setPlatformFee",
-    inputs: [
-      {
-        name: "feePercent",
-        type: "uint256",
-        internalType: "uint256",
-      },
-    ],
+    inputs: [{ name: "feePercent", type: "uint256", internalType: "uint256" }],
     outputs: [],
     stateMutability: "nonpayable",
   },
   {
     type: "function",
     name: "transferOwnership",
-    inputs: [
-      {
-        name: "newOwner",
-        type: "address",
-        internalType: "address",
-      },
-    ],
+    inputs: [{ name: "newOwner", type: "address", internalType: "address" }],
     outputs: [],
     stateMutability: "nonpayable",
   },
@@ -778,24 +476,10 @@ export const AURIENT_ABI = [
     type: "function",
     name: "userListings",
     inputs: [
-      {
-        name: "",
-        type: "address",
-        internalType: "address",
-      },
-      {
-        name: "",
-        type: "uint256",
-        internalType: "uint256",
-      },
+      { name: "", type: "address", internalType: "address" },
+      { name: "", type: "uint256", internalType: "uint256" },
     ],
-    outputs: [
-      {
-        name: "",
-        type: "uint256",
-        internalType: "uint256",
-      },
-    ],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
     stateMutability: "view",
   },
   {
@@ -1024,86 +708,27 @@ export const AURIENT_ABI = [
     ],
     anonymous: false,
   },
-  {
-    type: "error",
-    name: "CollectionAlreadyInitialized",
-    inputs: [],
-  },
-  {
-    type: "error",
-    name: "CollectionNotInitialized",
-    inputs: [],
-  },
-  {
-    type: "error",
-    name: "InsufficientPayment",
-    inputs: [],
-  },
-  {
-    type: "error",
-    name: "InvalidDataType",
-    inputs: [],
-  },
-  {
-    type: "error",
-    name: "InvalidPrice",
-    inputs: [],
-  },
-  {
-    type: "error",
-    name: "ListingNotActive",
-    inputs: [],
-  },
-  {
-    type: "error",
-    name: "ListingNotFound",
-    inputs: [],
-  },
-  {
-    type: "error",
-    name: "NoEarningsToClaim",
-    inputs: [],
-  },
-  {
-    type: "error",
-    name: "NotIPOwner",
-    inputs: [],
-  },
-  {
-    type: "error",
-    name: "NotListingOwner",
-    inputs: [],
-  },
+  { type: "error", name: "CannotPurchaseOwnListing", inputs: [] },
+  { type: "error", name: "CollectionAlreadyInitialized", inputs: [] },
+  { type: "error", name: "CollectionNotInitialized", inputs: [] },
+  { type: "error", name: "InsufficientPayment", inputs: [] },
+  { type: "error", name: "InvalidDataType", inputs: [] },
+  { type: "error", name: "InvalidPrice", inputs: [] },
+  { type: "error", name: "ListingNotActive", inputs: [] },
+  { type: "error", name: "ListingNotFound", inputs: [] },
+  { type: "error", name: "NoEarningsToClaim", inputs: [] },
+  { type: "error", name: "NotIPOwner", inputs: [] },
+  { type: "error", name: "NotListingOwner", inputs: [] },
   {
     type: "error",
     name: "OwnableInvalidOwner",
-    inputs: [
-      {
-        name: "owner",
-        type: "address",
-        internalType: "address",
-      },
-    ],
+    inputs: [{ name: "owner", type: "address", internalType: "address" }],
   },
   {
     type: "error",
     name: "OwnableUnauthorizedAccount",
-    inputs: [
-      {
-        name: "account",
-        type: "address",
-        internalType: "address",
-      },
-    ],
+    inputs: [{ name: "account", type: "address", internalType: "address" }],
   },
-  {
-    type: "error",
-    name: "ReentrancyGuardReentrantCall",
-    inputs: [],
-  },
-  {
-    type: "error",
-    name: "ZeroAddress",
-    inputs: [],
-  },
+  { type: "error", name: "ReentrancyGuardReentrantCall", inputs: [] },
+  { type: "error", name: "ZeroAddress", inputs: [] },
 ];

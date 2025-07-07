@@ -17,10 +17,11 @@ import { useAurient } from "@/hooks/useAurient";
 import WalletConnect from "@/components/wallet/WalletConnect";
 import { IPAsset, UserEarnings } from "@/lib/types";
 import { formatEther } from "viem";
+import { CONTRACT_CONFIG } from "@/contracts/config";
 
 const Dashboard = () => {
   const router = useRouter();
-  const { isConnected } = useWallet();
+  const { isConnected, publicClient } = useWallet();
   const {
     userHealthData,
     marketplaceData,
@@ -30,6 +31,7 @@ const Dashboard = () => {
     loadMarketplaceData,
     getHealthDataMetadata,
     getClaimableEarnings,
+    getClaimableEarningsBatch,
   } = useAurient();
   const [isClaiming, setIsClaiming] = useState(false);
   const [claimingAssetId, setClaimingAssetId] = useState<string | null>(null);
@@ -39,6 +41,9 @@ const Dashboard = () => {
     {}
   );
   const [earningsLoading, setEarningsLoading] = useState(false);
+  const [lastClaimTxs, setLastClaimTxs] = useState<Record<string, string>>({});
+  const [totalClaimable, setTotalClaimable] = useState("0 IP");
+  const [wipBalances, setWipBalances] = useState<Record<string, string>>({});
 
   // Convert user listings to IPAsset format for display
   const userAssets: IPAsset[] = useMemo(() => {
@@ -55,7 +60,6 @@ const Dashboard = () => {
           Number(listing.createdAt) * 1000
         ).toLocaleDateString(),
         isActive: listing.active,
-        earnings: assetEarnings[listing.ipId] || "0 IP",
         healthData: {
           id: listing.listingId.toString(),
           dataType: listing.dataType,
@@ -78,6 +82,13 @@ const Dashboard = () => {
     claimableBalance: userHealthData?.claimableEarnings || "0 IP",
     recentSales: [], // TODO: Implement recent sales tracking
   };
+
+  // Calculate total earned as sum of all WIP balances
+  const totalWipEarned = useMemo(() => {
+    const values = Object.values(wipBalances).map(Number);
+    const sum = values.reduce((acc, v) => acc + (isNaN(v) ? 0 : v), 0);
+    return `${sum.toFixed(4)} IP`;
+  }, [wipBalances]);
 
   // Fetch earnings for all user assets
   const fetchAssetsEarnings = async () => {
@@ -102,6 +113,8 @@ const Dashboard = () => {
           }
         })
       );
+
+      console.log("earningsMap", earningsMap);
 
       setAssetEarnings(earningsMap);
     } catch (error) {
@@ -220,6 +233,65 @@ const Dashboard = () => {
     }
   };
 
+  // Fetch total claimable earnings for all user assets
+  const fetchTotalClaimable = async () => {
+    if (!userAssets.length) {
+      setTotalClaimable("0 IP");
+      return;
+    }
+    try {
+      const ipIds = userAssets.map((asset) => asset.ipId);
+      const claimableAmounts = await getClaimableEarningsBatch(ipIds);
+      const total = claimableAmounts.reduce(
+        (sum, amount) => sum + parseFloat(amount),
+        0
+      );
+      setTotalClaimable(`${total} IP`);
+    } catch (error) {
+      console.error("Failed to fetch total claimable earnings:", error);
+      setTotalClaimable("0 IP");
+    }
+  };
+
+  // Fetch WIP balances for all user assets
+  const fetchWipBalances = async () => {
+    if (!userAssets.length || !publicClient) {
+      setWipBalances({});
+      return;
+    }
+    try {
+      const ipIds = userAssets.map((asset) => asset.ipId);
+      const balances: Record<string, string> = {};
+      await Promise.all(
+        ipIds.map(async (ipId) => {
+          try {
+            const bal = await publicClient.readContract({
+              address: CONTRACT_CONFIG.WIP_TOKEN,
+              abi: [
+                {
+                  type: "function",
+                  name: "balanceOf",
+                  inputs: [{ name: "account", type: "address" }],
+                  outputs: [{ name: "", type: "uint256" }],
+                  stateMutability: "view",
+                },
+              ],
+              functionName: "balanceOf",
+              args: [ipId],
+            });
+            balances[ipId] = (Number(bal) / 1e18).toFixed(4);
+          } catch (e) {
+            balances[ipId] = "0";
+          }
+        })
+      );
+      setWipBalances(balances);
+    } catch (error) {
+      console.error("Failed to fetch WIP balances:", error);
+      setWipBalances({});
+    }
+  };
+
   useEffect(() => {
     if (isConnected) {
       loadUserHealthData();
@@ -232,19 +304,27 @@ const Dashboard = () => {
     if (userAssets.length > 0) {
       fetchAssetsMetadata();
       fetchAssetsEarnings();
+      fetchTotalClaimable();
+      fetchWipBalances(); // fetch WIP balances
     } else {
       setAssetsWithMetadata([]);
       setAssetEarnings({});
+      setTotalClaimable("0 IP");
+      setWipBalances({});
     }
   }, [userAssets]);
 
   const handleClaimEarnings = async () => {
     setIsClaiming(true);
     try {
-      // For now, we'll claim earnings for the first IP asset
-      // In a real implementation, you'd want to claim for specific IPs or all at once
       if (assetsWithMetadata.length > 0) {
-        await claimEarnings(assetsWithMetadata[0].ipId);
+        const txHash = await claimEarnings(assetsWithMetadata[0].ipId);
+        setLastClaimTxs((prev) => ({
+          ...prev,
+          [assetsWithMetadata[0].ipId]: txHash,
+        }));
+        await loadUserHealthData();
+        await fetchAssetsEarnings();
       }
     } catch (error) {
       console.error("Failed to claim earnings:", error);
@@ -256,8 +336,12 @@ const Dashboard = () => {
   const handleClaimAssetEarnings = async (ipId: string) => {
     setClaimingAssetId(ipId);
     try {
-      await claimEarnings(ipId);
-      // Refresh earnings after successful claim
+      const txHash = await claimEarnings(ipId);
+      setLastClaimTxs((prev) => ({
+        ...prev,
+        [ipId]: txHash,
+      }));
+      await loadUserHealthData();
       await fetchAssetsEarnings();
     } catch (error) {
       console.error("Failed to claim earnings for asset", ipId, error);
@@ -343,7 +427,7 @@ const Dashboard = () => {
                 </h3>
               </div>
               <p className="text-3xl font-light text-gray-900 mb-1">
-                {userEarnings.totalEarned}
+                {totalWipEarned}
               </p>
               <p className="text-sm text-gray-600">From license sales</p>
             </div>
@@ -356,23 +440,10 @@ const Dashboard = () => {
                     Claimable
                   </h3>
                 </div>
-                <button
-                  onClick={handleClaimEarnings}
-                  disabled={isClaiming || assetsWithMetadata.length === 0}
-                  className="bg-purple-600 text-white px-4 py-2 rounded-full text-sm font-light hover:bg-purple-700 transition-colors disabled:opacity-50 flex items-center gap-2"
-                >
-                  {isClaiming ? (
-                    <>
-                      <Loader2 className="w-3 h-3 animate-spin" />
-                      Claiming...
-                    </>
-                  ) : (
-                    "Claim"
-                  )}
-                </button>
+                {/* Claim button removed as requested */}
               </div>
               <p className="text-3xl font-light text-gray-900 mb-1">
-                {userEarnings.claimableBalance}
+                {totalClaimable}
               </p>
               <p className="text-sm text-gray-600">Ready to withdraw</p>
             </div>
@@ -452,9 +523,9 @@ const Dashboard = () => {
                         ) : (
                           <>
                             <p className="text-lg font-medium text-green-600">
-                              {asset.earnings}
+                              {assetEarnings[asset.ipId] || "0 IP"}
                             </p>
-                            <p className="text-sm text-gray-600">earned</p>
+                            <p className="text-sm text-gray-600">claimable</p>
                           </>
                         )}
                       </div>
@@ -512,6 +583,11 @@ const Dashboard = () => {
                             </div>
                           </div>
                         )}
+                        {wipBalances[asset.ipId] !== undefined && (
+                          <div className="mt-1 text-xs text-purple-700 font-mono">
+                            IP Earned: {wipBalances[asset.ipId]} WIP
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -526,27 +602,44 @@ const Dashboard = () => {
                       </button>
                     </div>
 
-                    {/* Claim Earnings Button */}
-                    {asset.earnings !== "0 IP" && (
+                    {/* Claim Earnings Button or Transaction Hash */}
+                    {lastClaimTxs[asset.ipId] &&
+                    typeof lastClaimTxs[asset.ipId] === "string" ? (
                       <div className="mt-4">
-                        <button
-                          onClick={() => handleClaimAssetEarnings(asset.ipId)}
-                          disabled={claimingAssetId === asset.ipId}
-                          className="w-full bg-green-600 text-white px-4 py-2 rounded-full text-sm font-light hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                        <a
+                          href={`https://aeneid.storyscan.io/tx/${
+                            lastClaimTxs[asset.ipId]
+                          }`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="w-full inline-block bg-green-50 text-green-700 px-4 py-2 rounded-full text-sm font-light text-center hover:bg-green-100 transition-colors truncate"
                         >
-                          {claimingAssetId === asset.ipId ? (
-                            <>
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                              Claiming...
-                            </>
-                          ) : (
-                            <>
-                              <DollarSign className="w-4 h-4" />
-                              Claim {asset.earnings}
-                            </>
-                          )}
-                        </button>
+                          Tx: {lastClaimTxs[asset.ipId].slice(0, 8)}...
+                          {lastClaimTxs[asset.ipId].slice(-6)}
+                        </a>
                       </div>
+                    ) : (
+                      (assetEarnings[asset.ipId] || "0 IP") !== "0 IP" && (
+                        <div className="mt-4">
+                          <button
+                            onClick={() => handleClaimAssetEarnings(asset.ipId)}
+                            disabled={claimingAssetId === asset.ipId}
+                            className="w-full bg-green-600 text-white px-4 py-2 rounded-full text-sm font-light hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                          >
+                            {claimingAssetId === asset.ipId ? (
+                              <>
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                Claiming...
+                              </>
+                            ) : (
+                              <>
+                                <DollarSign className="w-4 h-4" />
+                                Claim {assetEarnings[asset.ipId] || "0 IP"}
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      )
                     )}
                   </div>
                 ))}
