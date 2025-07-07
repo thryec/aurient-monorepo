@@ -22,16 +22,22 @@ const Header = () => {
             how it works
           </a>
           <button
-            onClick={() => router.push("/marketplace")}
+            onClick={() => router.push("/overview")}
             className="hover:text-gray-900 transition-colors hover:cursor-pointer"
           >
-            marketplace
+            overview
           </button>
           <button
             onClick={() => router.push("/insights")}
             className="hover:text-gray-900 transition-colors hover:cursor-pointer"
           >
             insights
+          </button>
+          <button
+            onClick={() => router.push("/marketplace")}
+            className="hover:text-gray-900 transition-colors hover:cursor-pointer"
+          >
+            marketplace
           </button>
           <button
             onClick={() => router.push("/dashboard")}
