@@ -1,7 +1,13 @@
 "use client";
 
 import React from "react";
-import { Wallet, CheckCircle, AlertTriangle } from "lucide-react";
+import {
+  Wallet,
+  CheckCircle,
+  AlertTriangle,
+  ChevronDown,
+  LogOut,
+} from "lucide-react";
 import { useWallet } from "@/hooks/useWallet";
 
 interface WalletConnectProps {
@@ -36,6 +42,7 @@ const WalletConnect: React.FC<WalletConnectProps> = ({
   } = useWallet();
 
   const [balance, setBalance] = React.useState<string>("0");
+  const [isDropdownOpen, setIsDropdownOpen] = React.useState(false);
 
   // Load balance when connected
   React.useEffect(() => {
@@ -60,6 +67,29 @@ const WalletConnect: React.FC<WalletConnectProps> = ({
       onConnected();
     }
   }, [isConnected, onConnected]);
+
+  // Close dropdown when clicking outside
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      if (!target.closest(".wallet-dropdown")) {
+        setIsDropdownOpen(false);
+      }
+    };
+
+    if (isDropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isDropdownOpen]);
+
+  const handleDisconnect = () => {
+    disconnectWallet();
+    setIsDropdownOpen(false);
+  };
 
   // Styling variants
   const getButtonStyles = () => {
@@ -112,24 +142,63 @@ const WalletConnect: React.FC<WalletConnectProps> = ({
 
   return (
     <div className={`${getContainerStyles()} ${className}`}>
-      {/* Connection Status */}
-      <div className="flex items-center gap-3">
-        {/* Connected Indicator */}
-        <div className="flex items-center gap-2 bg-white/90 backdrop-blur-sm rounded-full px-4 py-2 border border-gray-200">
+      {/* Wallet Dropdown */}
+      <div className="relative wallet-dropdown">
+        <button
+          onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+          className="flex items-center gap-3 bg-white/90 backdrop-blur-sm rounded-full px-4 py-2 border border-gray-200 hover:bg-white transition-colors"
+        >
           <CheckCircle className="w-4 h-4 text-green-500" />
           <span className="text-sm text-gray-900 font-mono">
             {address?.slice(0, 6)}...{address?.slice(-4)}
           </span>
-        </div>
+          <ChevronDown
+            className={`w-4 h-4 text-gray-500 transition-transform ${
+              isDropdownOpen ? "rotate-180" : ""
+            }`}
+          />
+        </button>
 
-        {/* Balance Display */}
-        {showBalance && (
-          <div className="bg-white/90 backdrop-blur-sm rounded-full px-4 py-2 border border-gray-200">
-            <span className="text-sm text-gray-600">Balance: </span>
-            <span className="font-medium text-gray-900">{balance} IP</span>
+        {/* Dropdown Menu */}
+        {isDropdownOpen && (
+          <div className="absolute top-full mt-2 right-0 bg-white border border-gray-200 rounded-xl shadow-lg py-2 min-w-[200px] z-50">
+            {/* Wallet Address */}
+            <div className="px-4 py-3 border-b border-gray-100">
+              <p className="text-xs text-gray-500 mb-1">Connected Wallet</p>
+              <p className="text-sm font-mono text-gray-900 break-all">
+                {address}
+              </p>
+            </div>
+
+            {/* Balance (if enabled) */}
+            {showBalance && (
+              <div className="px-4 py-3 border-b border-gray-100">
+                <p className="text-xs text-gray-500 mb-1">Balance</p>
+                <p className="text-sm font-medium text-gray-900">
+                  {balance} IP
+                </p>
+              </div>
+            )}
+
+            {/* Disconnect Button */}
+            <button
+              onClick={handleDisconnect}
+              className="w-full px-4 py-3 text-left text-sm text-red-600 hover:bg-red-50 transition-colors flex items-center gap-2"
+            >
+              <LogOut className="w-4 h-4" />
+              Disconnect Wallet
+            </button>
           </div>
         )}
       </div>
+
+      {/* Balance Display (for non-dropdown variants) */}
+      {showBalance && variant !== "default" && (
+        <div className="bg-white/90 backdrop-blur-sm rounded-full px-4 py-2 border border-gray-200">
+          <span className="text-sm text-gray-600">Balance: </span>
+          <span className="font-medium text-gray-900">{balance} IP</span>
+        </div>
+      )}
 
       {/* Network Warning */}
       {showNetwork && !isOnStoryNetwork && (
