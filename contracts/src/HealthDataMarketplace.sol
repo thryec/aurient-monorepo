@@ -328,8 +328,8 @@ contract HealthDataMarketplace is Ownable, ReentrancyGuard {
             payable(msg.sender).transfer(msg.value - totalAmount);
         }
 
-        // Mark listing as purchased
-        listing.active = false;
+        // Keep listing active for multiple purchases
+        // listing.active = false; // Removed to allow multiple purchases
 
         emit LicensePurchased(msg.sender, listing.ipId, listingId, totalAmount);
     }

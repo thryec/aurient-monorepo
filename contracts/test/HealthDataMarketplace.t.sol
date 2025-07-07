@@ -389,9 +389,9 @@ contract StateTwoTest is StateTwo {
         );
         assertEq(aliceEarnings, expectedRoyaltyAmount);
 
-        // Verify listing was deactivated
+        // Verify listing remains active for multiple purchases
         (, , , , , bool active, ) = marketplace.listings(listingId);
-        assertFalse(active);
+        assertTrue(active);
     }
 
     function testPurchaseLicenseWithOverpayment() public {
@@ -512,16 +512,15 @@ contract StateThreeTest is StateThree {
         assertTrue(IP_ASSET_REGISTRY.isRegistered(ipId));
         assertTrue(IP_ASSET_REGISTRY.isRegistered(ipId2));
 
-        // Check active listings (should be 1 since first was purchased)
+        // Check active listings (should be 2 since both remain active after purchase)
         HealthDataMarketplace.Listing[] memory activeListings = marketplace
             .getActiveListings();
-        assertEq(activeListings.length, 1);
-        assertEq(activeListings[0].seller, bob);
+        assertEq(activeListings.length, 2);
 
         // Check listings by data type
         HealthDataMarketplace.Listing[] memory sleepListings = marketplace
             .getListingsByDataType(DATA_TYPE_SLEEP);
-        assertEq(sleepListings.length, 0); // Alice's was purchased
+        assertEq(sleepListings.length, 1); // Alice's remains active
 
         HealthDataMarketplace.Listing[] memory hrvListings = marketplace
             .getListingsByDataType(DATA_TYPE_HRV);
@@ -534,16 +533,38 @@ contract StateThreeTest is StateThree {
         vm.prank(alice); // Alice buys Bob's data
         marketplace.purchaseLicense{value: PRICE_100_IP}(listingId2);
 
-        // Verify both listings are inactive
+        // Verify both listings remain active for multiple purchases
         (, , , , , bool active1, ) = marketplace.listings(listingId);
         (, , , , , bool active2, ) = marketplace.listings(listingId2);
-        assertFalse(active1);
-        assertFalse(active2);
+        assertTrue(active1);
+        assertTrue(active2);
 
-        // Verify no active listings
+        // Verify both listings are still active
         HealthDataMarketplace.Listing[] memory activeListings = marketplace
             .getActiveListings();
-        assertEq(activeListings.length, 0);
+        assertEq(activeListings.length, 2);
+    }
+
+    function testMultiplePurchasesOfSameLicense() public {
+        // Charlie already purchased the license in StateTwo setup, so he has 1 token
+        assertEq(LICENSE_TOKEN.balanceOf(charlie), 1);
+
+        // Bob purchases the same license second time
+        vm.prank(bob);
+        marketplace.purchaseLicense{value: PRICE_50_IP}(listingId);
+
+        // Verify Bob received a license token
+        assertEq(LICENSE_TOKEN.balanceOf(bob), 1);
+
+        // Verify listing is still active for more purchases
+        (, , , , , bool activeAfterSecondPurchase, ) = marketplace.listings(
+            listingId
+        );
+        assertTrue(activeAfterSecondPurchase);
+
+        // Verify both users have license tokens
+        assertEq(LICENSE_TOKEN.balanceOf(charlie), 1);
+        assertEq(LICENSE_TOKEN.balanceOf(bob), 1);
     }
 
     function testEmergencyWithdraw() public {
@@ -621,8 +642,9 @@ contract StateTransitionTest is StateZero {
         assertEq(charlie.balance, charlieInitialBalance - PRICE_50_IP);
         assertEq(LICENSE_TOKEN.balanceOf(charlie), 1);
 
+        // Verify listing remains active for multiple purchases
         (, , , , , bool active, ) = marketplace.listings(listingId);
-        assertFalse(active);
+        assertTrue(active);
     }
 
     function testStateTwoToStateThree() public {
@@ -656,7 +678,7 @@ contract StateTransitionTest is StateZero {
 
         HealthDataMarketplace.Listing[] memory activeListings = marketplace
             .getActiveListings();
-        assertEq(activeListings.length, 1); // Only Bob's listing is active
+        assertEq(activeListings.length, 2); // Both listings remain active
     }
 
     // Allow test contract to receive ether
