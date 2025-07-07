@@ -13,13 +13,37 @@ import {
 } from "lucide-react";
 import { useWallet } from "@/hooks/useWallet";
 import WalletConnect from "@/components/wallet/WalletConnect";
-import { MOCK_MARKETPLACE_LISTINGS } from "@/lib/constants";
 import { MarketplaceListing, TransactionState } from "@/lib/types";
+import { useAurient } from "@/hooks/useAurient";
+import { formatEther } from "viem";
+
+// Helper to transform contract Listing to MarketplaceListing
+function transformListing(listing: any): MarketplaceListing {
+  return {
+    id: listing.listingId?.toString?.() ?? listing.id?.toString?.() ?? "",
+    ipId: listing.ipId,
+    dataType: listing.dataType,
+    price: `${formatEther(BigInt(listing.priceIP))} IP`,
+    qualityScore: 8.5, // Default or fetch from metadata if available
+    seller: listing.seller,
+    listedDate: new Date(Number(listing.createdAt) * 1000)
+      .toISOString()
+      .split("T")[0],
+    description: `High-quality ${listing.dataType?.toLowerCase?.()} data available for licensing. This dataset includes comprehensive health metrics and insights.`,
+  };
+}
 
 const PurchaseFlow = () => {
   const router = useRouter();
   const params = useParams();
   const { isConnected, isOnStoryNetwork, getBalance } = useWallet();
+  const {
+    activeListings,
+    loadActiveListings,
+    purchaseLicense,
+    loading,
+    statusMessage,
+  } = useAurient();
 
   const [listing, setListing] = useState<MarketplaceListing | null>(null);
   const [balance, setBalance] = useState<string>("0");
@@ -29,14 +53,21 @@ const PurchaseFlow = () => {
     isError: false,
   });
   const [licenseTokenId, setLicenseTokenId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
+  // Load listings and find the one by ID
   useEffect(() => {
-    // Find the listing by ID
-    const foundListing = MOCK_MARKETPLACE_LISTINGS.find(
-      (l) => l.id === params.id
+    if (!activeListings || activeListings.length === 0) {
+      setIsLoading(true);
+      loadActiveListings();
+      return;
+    }
+    const found = activeListings.find(
+      (l) => l.listingId?.toString?.() === params.id
     );
-    setListing(foundListing || null);
-  }, [params.id]);
+    setListing(found ? transformListing(found) : null);
+    setIsLoading(false);
+  }, [activeListings, params.id, loadActiveListings]);
 
   useEffect(() => {
     const loadBalance = async () => {
@@ -56,33 +87,47 @@ const PurchaseFlow = () => {
 
   const handlePurchase = async () => {
     if (!listing || !isConnected) return;
-
     setTransaction({ isPending: true, isSuccess: false, isError: false });
-
     try {
-      // Simulate blockchain transaction for license purchase
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-
-      const mockLicenseTokenId = `LT${Date.now()}`;
-      setLicenseTokenId(mockLicenseTokenId);
+      // Use the real purchaseLicense function
+      const tx = await purchaseLicense({
+        listingId: Number(listing.id),
+        value: BigInt(
+          parseFloat(listing.price.split(" ")[0]) * 1e18
+        ).toString(),
+      });
+      setLicenseTokenId(tx?.licenseTokenId || `LT${Date.now()}`);
       setTransaction({
         isPending: false,
         isSuccess: true,
         isError: false,
-        txHash: "0x123...def",
+        txHash: tx?.transactionHash || tx?.hash || "",
       });
-    } catch (error) {
+    } catch (error: any) {
       setTransaction({
         isPending: false,
         isSuccess: false,
         isError: true,
-        error: "Transaction failed. Please try again.",
+        error: error?.message || "Transaction failed. Please try again.",
       });
     }
   };
 
   const priceInIP = listing ? parseFloat(listing.price.split(" ")[0]) : 0;
   const hasEnoughBalance = parseFloat(balance) >= priceInIP;
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-orange-200 via-pink-200 via-purple-300 to-blue-500 flex items-center justify-center">
+        <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-12 text-center shadow-lg">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-gray-700" />
+          <h2 className="text-2xl font-light text-gray-900 mb-4">
+            Loading listing...
+          </h2>
+        </div>
+      </div>
+    );
+  }
 
   if (!listing) {
     return (
