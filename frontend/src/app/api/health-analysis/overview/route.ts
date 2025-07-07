@@ -1,15 +1,15 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { exec } from 'child_process';
-import { promisify } from 'util';
-import path from 'path';
+import { NextRequest, NextResponse } from "next/server";
+import { exec } from "child_process";
+import { promisify } from "util";
+import path from "path";
 
 const execAsync = promisify(exec);
 
 export async function GET(request: NextRequest) {
   try {
     // Path to the aurient_data directory
-    const aurientDataPath = path.join(process.cwd(), '..', 'aurient_data');
-    
+    const aurientDataPath = path.join(process.cwd(), "..", "aurient_data");
+
     // Python script to generate overview recommendations
     const pythonScript = `
 import sys
@@ -78,55 +78,62 @@ except Exception as e:
 `;
 
     // Write Python script to temporary file
-    const { writeFile, unlink } = require('fs').promises;
-    const tmpFile = path.join(process.cwd(), 'tmp_overview_script.py');
+    const { writeFile, unlink } = require("fs").promises;
+    const tmpFile = path.join(process.cwd(), "tmp_overview_script.py");
     await writeFile(tmpFile, pythonScript);
 
     try {
-      // Execute Python script
-      const { stdout, stderr } = await execAsync(`cd "${aurientDataPath}" && python "${tmpFile}"`);
-      
+      // Execute Python script using the virtual environment
+      const { stdout, stderr } = await execAsync(
+        `cd "${aurientDataPath}" && source venv/bin/activate && python3 "${tmpFile}"`
+      );
+
       if (stderr) {
-        console.error('Python stderr:', stderr);
+        console.error("Python stderr:", stderr);
       }
 
       // Parse the JSON response from Python
       const result = JSON.parse(stdout);
-      
+
       // Clean up temporary file
       await unlink(tmpFile);
-      
+
       if (result.success) {
         return NextResponse.json({
           success: true,
           data: {
             structured_advice: result.structured_advice,
             userMetadata: result.user_metadata,
-            dataSummary: result.data_summary
-          }
+            dataSummary: result.data_summary,
+          },
         });
       } else {
-        return NextResponse.json({
-          success: false,
-          error: result.error
-        }, { status: 500 });
+        return NextResponse.json(
+          {
+            success: false,
+            error: result.error,
+          },
+          { status: 500 }
+        );
       }
-      
     } catch (execError) {
       // Clean up temporary file on error
       try {
         await unlink(tmpFile);
       } catch (cleanupError) {
-        console.error('Failed to cleanup temp file:', cleanupError);
+        console.error("Failed to cleanup temp file:", cleanupError);
       }
       throw execError;
     }
-    
   } catch (error) {
-    console.error('Overview analysis error:', error);
-    return NextResponse.json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error occurred'
-    }, { status: 500 });
+    console.error("Overview analysis error:", error);
+    return NextResponse.json(
+      {
+        success: false,
+        error:
+          error instanceof Error ? error.message : "Unknown error occurred",
+      },
+      { status: 500 }
+    );
   }
 }

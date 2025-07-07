@@ -85,7 +85,7 @@ except Exception as e:
     try {
       // Execute Python script using the virtual environment
       const { stdout, stderr } = await execAsync(
-        `cd "${aurientDataPath}" && source venv/bin/activate && python "${tmpFile}"`
+        `cd "${aurientDataPath}" && source venv/bin/activate && python3 "${tmpFile}"`
       );
 
       if (stderr) {
