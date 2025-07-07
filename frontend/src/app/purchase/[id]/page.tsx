@@ -157,7 +157,7 @@ const PurchaseFlow = () => {
                 <div className="mb-6">
                   <span className="text-gray-700">Transaction Hash: </span>
                   <a
-                    href={`https://aeneid.story.foundation/tx/${transaction.txHash}`}
+                    href={`https://aeneid.storyscan.io/tx/${transaction.txHash}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-blue-700 underline break-all"

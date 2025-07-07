@@ -2,7 +2,7 @@ import { defineChain } from "viem";
 import { AURIENT_ABI } from "./abis/aurient";
 
 export const CONTRACTS = {
-  Aurient: "0x0A5F8a4c1aa7Efb41219918cbb63e7DB02dE1437" as const,
+  Aurient: "0xB4111806B5180430e22Ee2E7db8cc243578DdF5f" as const,
 } as const;
 
 // Contract configuration

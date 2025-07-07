@@ -29,10 +29,16 @@ const Dashboard = () => {
     loadUserHealthData,
     loadMarketplaceData,
     getHealthDataMetadata,
+    getClaimableEarnings,
   } = useAurient();
   const [isClaiming, setIsClaiming] = useState(false);
+  const [claimingAssetId, setClaimingAssetId] = useState<string | null>(null);
   const [assetsWithMetadata, setAssetsWithMetadata] = useState<IPAsset[]>([]);
   const [metadataLoading, setMetadataLoading] = useState(false);
+  const [assetEarnings, setAssetEarnings] = useState<Record<string, string>>(
+    {}
+  );
+  const [earningsLoading, setEarningsLoading] = useState(false);
 
   // Convert user listings to IPAsset format for display
   const userAssets: IPAsset[] = useMemo(() => {
@@ -49,7 +55,7 @@ const Dashboard = () => {
           Number(listing.createdAt) * 1000
         ).toLocaleDateString(),
         isActive: listing.active,
-        earnings: "0 IP", // TODO: Calculate from royalties
+        earnings: assetEarnings[listing.ipId] || "0 IP",
         healthData: {
           id: listing.listingId.toString(),
           dataType: listing.dataType,
@@ -71,6 +77,38 @@ const Dashboard = () => {
     totalEarned: userHealthData?.totalEarnings || "0 IP",
     claimableBalance: userHealthData?.claimableEarnings || "0 IP",
     recentSales: [], // TODO: Implement recent sales tracking
+  };
+
+  // Fetch earnings for all user assets
+  const fetchAssetsEarnings = async () => {
+    if (!userAssets.length) return;
+
+    setEarningsLoading(true);
+    try {
+      const earningsMap: Record<string, string> = {};
+
+      await Promise.all(
+        userAssets.map(async (asset) => {
+          try {
+            const earnings = await getClaimableEarnings(asset.ipId);
+            earningsMap[asset.ipId] = `${earnings} IP`;
+          } catch (error) {
+            console.error(
+              "Failed to fetch earnings for asset",
+              asset.ipId,
+              error
+            );
+            earningsMap[asset.ipId] = "0 IP";
+          }
+        })
+      );
+
+      setAssetEarnings(earningsMap);
+    } catch (error) {
+      console.error("Failed to fetch assets earnings:", error);
+    } finally {
+      setEarningsLoading(false);
+    }
   };
 
   // Fetch metadata for all user assets
@@ -193,8 +231,10 @@ const Dashboard = () => {
   useEffect(() => {
     if (userAssets.length > 0) {
       fetchAssetsMetadata();
+      fetchAssetsEarnings();
     } else {
       setAssetsWithMetadata([]);
+      setAssetEarnings({});
     }
   }, [userAssets]);
 
@@ -210,6 +250,19 @@ const Dashboard = () => {
       console.error("Failed to claim earnings:", error);
     } finally {
       setIsClaiming(false);
+    }
+  };
+
+  const handleClaimAssetEarnings = async (ipId: string) => {
+    setClaimingAssetId(ipId);
+    try {
+      await claimEarnings(ipId);
+      // Refresh earnings after successful claim
+      await fetchAssetsEarnings();
+    } catch (error) {
+      console.error("Failed to claim earnings for asset", ipId, error);
+    } finally {
+      setClaimingAssetId(null);
     }
   };
 
@@ -389,10 +442,21 @@ const Dashboard = () => {
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="text-lg font-medium text-green-600">
-                          {asset.earnings}
-                        </p>
-                        <p className="text-sm text-gray-600">earned</p>
+                        {earningsLoading ? (
+                          <div className="flex items-center gap-2">
+                            <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                            <span className="text-sm text-gray-400">
+                              Loading...
+                            </span>
+                          </div>
+                        ) : (
+                          <>
+                            <p className="text-lg font-medium text-green-600">
+                              {asset.earnings}
+                            </p>
+                            <p className="text-sm text-gray-600">earned</p>
+                          </>
+                        )}
                       </div>
                     </div>
 
@@ -461,6 +525,29 @@ const Dashboard = () => {
                         Story Explorer
                       </button>
                     </div>
+
+                    {/* Claim Earnings Button */}
+                    {asset.earnings !== "0 IP" && (
+                      <div className="mt-4">
+                        <button
+                          onClick={() => handleClaimAssetEarnings(asset.ipId)}
+                          disabled={claimingAssetId === asset.ipId}
+                          className="w-full bg-green-600 text-white px-4 py-2 rounded-full text-sm font-light hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                        >
+                          {claimingAssetId === asset.ipId ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              Claiming...
+                            </>
+                          ) : (
+                            <>
+                              <DollarSign className="w-4 h-4" />
+                              Claim {asset.earnings}
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

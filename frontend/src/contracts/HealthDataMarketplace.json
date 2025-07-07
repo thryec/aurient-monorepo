@@ -116,6 +116,19 @@
   },
   {
     "type": "function",
+    "name": "claimEarningsBatch",
+    "inputs": [
+      {
+        "name": "ipIds",
+        "type": "address[]",
+        "internalType": "address[]"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "emergencyWithdraw",
     "inputs": [],
     "outputs": [],
@@ -1027,6 +1040,11 @@
   {
     "type": "error",
     "name": "CollectionAlreadyInitialized",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "CannotPurchaseOwnListing",
     "inputs": []
   },
   {

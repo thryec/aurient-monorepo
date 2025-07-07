@@ -407,6 +407,46 @@ export function useAurient() {
     }
   };
 
+  const claimEarningsBatch = async (ipIds: string[]) => {
+    if (!walletClient || !address) {
+      throw new Error("Wallet not connected");
+    }
+
+    setLoadingState("claimBatch", true);
+    try {
+      const hash = await walletClient.writeContract({
+        account: address,
+        address: CONTRACT_CONFIG.HEALTH_DATA_MARKETPLACE_ADDRESS,
+        abi: HEALTH_DATA_MARKETPLACE_ABI,
+        functionName: "claimEarningsBatch",
+        args: [ipIds],
+      });
+
+      console.log("Claim earnings batch hash:", hash);
+      showStatus(
+        "Batch earnings claim transaction sent! Waiting for confirmation..."
+      );
+
+      const receipt = await publicClient.waitForTransactionReceipt({ hash });
+      console.log("Transaction confirmed:", receipt);
+
+      showStatus("Batch earnings claimed successfully!");
+
+      // Refresh data
+      await Promise.all([loadUserHealthData(), loadBalances()]);
+
+      return receipt;
+    } catch (error: any) {
+      console.error("Failed to claim earnings batch:", error);
+      showStatus(
+        `Failed to claim earnings batch: ${error.message || "Unknown error"}`
+      );
+      throw error;
+    } finally {
+      setLoadingState("claimBatch", false);
+    }
+  };
+
   const getListingsByDataType = async (
     dataType: string
   ): Promise<Listing[]> => {
@@ -518,6 +558,7 @@ export function useAurient() {
     purchaseLicense,
     removeListing,
     claimEarnings,
+    claimEarningsBatch,
     getListingsByDataType,
     getHealthDataMetadata,
     getLicensePrice,
