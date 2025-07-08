@@ -153,106 +153,158 @@ export default function OverviewPage() {
     );
   };
 
+  // Emma's hardcoded personalized health advice
+  const emmaAdvice: StructuredAdvice = {
+    title: "Emma's Personalized Health Advice",
+    user_profile: {
+      name: "Emma",
+      age: 26,
+      focus_areas: [
+        "sleep consistency and quality",
+        "cycle-based training intensity",
+        "recovery optimization",
+        "nutrition timing",
+      ],
+    },
+    sections: {
+      behavioral: {
+        title: "Behavioral Recommendations",
+        icon: "🧠",
+        recommendations: [
+          {
+            title: "Optimize Sleep Timing",
+            description:
+              "Your sleep score (83.55) is good, but your HRV data suggests room for improvement. Aim for consistent 7-8 hour sleep periods, especially during your luteal phase when sleep quality naturally declines.",
+            reasoning:
+              "Consistent sleep supports hormonal balance and recovery, especially during the luteal phase.",
+            actionable_steps: [
+              "Set a regular bedtime and wake time.",
+              "Use blackout curtains to improve sleep quality.",
+              "Track sleep duration and quality each night.",
+            ],
+          },
+          {
+            title: "Stress Management",
+            description:
+              "Your stress data shows high periods of stress (mean stress_high = 4606.74). Implement: Morning HRV-guided breathing (6 breaths/minute) during follicular phase, evening cool-down routine during luteal phase, and regular mindfulness sessions timed with your cycle (more frequent during luteal phase).",
+            reasoning:
+              "HRV-guided breathing and mindfulness reduce stress and improve resilience, especially when timed with your cycle.",
+            actionable_steps: [
+              "Practice HRV breathing each morning.",
+              "Add a 10-minute mindfulness session in the evening.",
+              "Increase mindfulness frequency during luteal phase.",
+            ],
+          },
+        ],
+      },
+      exercise: {
+        title: "Exercise Recommendations",
+        icon: "💪",
+        recommendations: [
+          {
+            title: "Cycle-Based Training",
+            description:
+              "Follicular Phase: Leverage your higher HRV (78.06 average) for high-intensity training (3-4 strength sessions, 2 HIIT sessions, progressive overload focus). Luteal Phase: Modify for reduced recovery capacity (2-3 strength sessions at moderate intensity, replace HIIT with steady-state cardio, focus on technique and maintenance).",
+            reasoning:
+              "Training intensity should match hormonal fluctuations for optimal results and recovery.",
+            actionable_steps: [
+              "Plan high-intensity workouts during follicular phase.",
+              "Switch to moderate intensity and steady-state cardio during luteal phase.",
+              "Track HRV and readiness to guide daily intensity.",
+            ],
+          },
+          {
+            title: "Recovery Protocol",
+            description:
+              "Your active calorie burn (776.74 mean) suggests good activity levels. Implement: 24-hour recovery between high-intensity sessions, extended recovery (48 hours) during luteal phase, and use readiness score (80.84 mean) to guide daily intensity.",
+            reasoning:
+              "Proper recovery prevents overtraining and supports adaptation, especially during hormonal shifts.",
+            actionable_steps: [
+              "Schedule at least 24 hours between intense sessions.",
+              "Allow 48 hours recovery during luteal phase.",
+              "Monitor readiness score before each workout.",
+            ],
+          },
+        ],
+      },
+      nutrition: {
+        title: "Nutrition Recommendations",
+        icon: "🥗",
+        recommendations: [
+          {
+            title: "Cycle-Synced Nutrition",
+            description:
+              "Follicular Phase: Higher protein (1.8-2.0g/kg) for muscle development, complex carbs to support increased training volume. Luteal Phase: Increase calories by 5-10% to support higher BMR, focus on magnesium-rich foods for sleep support, increase iron-rich foods during menstruation.",
+            reasoning:
+              "Nutritional needs change with cycle phase; syncing intake supports performance and recovery.",
+            actionable_steps: [
+              "Increase protein and carbs during follicular phase.",
+              "Add magnesium and iron-rich foods during luteal phase.",
+              "Increase calories slightly during luteal phase.",
+            ],
+          },
+          {
+            title: "Hydration",
+            description:
+              "Base: 2.7L daily, add 500ml per hour of exercise, increase by 10% during luteal phase.",
+            reasoning:
+              "Proper hydration supports metabolism and recovery, especially with increased BMR during luteal phase.",
+            actionable_steps: [
+              "Drink at least 2.7L water daily.",
+              "Add 500ml for each hour of exercise.",
+              "Increase intake by 10% during luteal phase.",
+            ],
+          },
+        ],
+      },
+      supplementation: {
+        title: "Supplementation Recommendations",
+        icon: "💊",
+        recommendations: [
+          {
+            title: "Core Supplements",
+            description:
+              "Magnesium (200-400mg) - supports sleep quality and HRV; Iron (18mg) - particularly important during menstruation; Vitamin D3 (2000-4000 IU) - supports recovery and performance.",
+            reasoning:
+              "These supplements are evidence-based for women's health and performance.",
+            actionable_steps: [
+              "Take magnesium in the evening.",
+              "Supplement iron during menstruation.",
+              "Take vitamin D3 daily.",
+            ],
+          },
+          {
+            title: "Cycle-Specific Supplements",
+            description:
+              "Follicular Phase: BCAAs during training, creatine monohydrate (5g daily). Luteal Phase: Omega-3s (2-3g daily) for inflammation management, B-complex for energy support.",
+            reasoning:
+              "Cycle-specific supplements support training adaptation and recovery.",
+            actionable_steps: [
+              "Add BCAAs and creatine during follicular phase.",
+              "Take omega-3s and B-complex during luteal phase.",
+            ],
+          },
+        ],
+      },
+    },
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-200 via-pink-200 via-orange-200 to-yellow-300 relative overflow-hidden">
       <Header />
 
       <div className="w-full flex flex-col items-center justify-start py-16 px-4">
-        {!showResults ? (
-          // Initial state - similar to insights page
-          <div className="max-w-2xl w-full text-center mb-12">
-            <h1 className="text-5xl md:text-6xl font-light text-gray-900 mb-4 tracking-tight">
-              Health Overview
-            </h1>
-            <p className="text-xl md:text-2xl text-gray-700 font-light mb-8">
-              comprehensive AI-powered health insights
-            </p>
-
-            <button
-              onClick={generateOverviewRecommendations}
-              disabled={loading}
-              className="relative bg-black text-white px-10 py-4 rounded-full font-light text-lg shadow-lg hover:bg-gray-800 transition-all duration-300 flex items-center justify-center mx-auto min-w-[200px]"
-            >
-              {loading ? (
-                <span className="flex items-center gap-2">
-                  <span className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white"></span>
-                  Analyzing...
-                </span>
-              ) : (
-                "Generate Health Overview"
-              )}
-            </button>
-
-            {/* Error Display */}
-            {error && (
-              <div className="max-w-2xl w-full mt-8 p-4 bg-red-100 border border-red-200 rounded-lg">
-                <p className="text-red-700 text-center font-light">{error}</p>
-              </div>
-            )}
-
-            {/* Loading State */}
-            {loading && (
-              <div className="mt-12 max-w-lg mx-auto">
-                <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-8 border border-gray-200 shadow-lg">
-                  <div className="flex flex-col items-center gap-4">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-                    <div className="text-center">
-                      <h3 className="font-medium text-gray-900 mb-2">
-                        Analyzing Your Health Data
-                      </h3>
-                      <p className="text-gray-600 font-light">
-                        AI is processing your Oura Ring data to generate
-                        personalized recommendations...
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        ) : (
-          // Results state
-          <div className="w-full max-w-5xl">
-            {/* Header */}
-            <div className="text-center mb-12">
-              <h1 className="text-4xl md:text-5xl font-light text-gray-900 mb-4 tracking-tight">
-                Emma&apos;s Personalized Health Advice
-              </h1>
-            </div>
-
-            {analysisData?.success && analysisData.data && (
-              <div className="space-y-8">
-                {/* AI Recommendations */}
-                {analysisData.data.structured_advice &&
-                "sections" in analysisData.data.structured_advice ? (
-                  <>
-                    {renderStructuredAdviceCards(
-                      analysisData.data.structured_advice as StructuredAdvice
-                    )}
-                  </>
-                ) : (
-                  <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-8 border border-gray-200 shadow-lg">
-                    <h2 className="text-2xl font-light text-gray-900 mb-6">
-                      Health Recommendations
-                    </h2>
-                    <div className="text-gray-700">
-                      {analysisData.data.structured_advice?.error ? (
-                        <p>
-                          Error: {analysisData.data.structured_advice.error}
-                        </p>
-                      ) : (
-                        <p>
-                          Unable to load structured recommendations. Please try
-                          again.
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
+        <div className="max-w-2xl w-full text-center mb-12">
+          <h1 className="text-5xl md:text-6xl font-light text-gray-900 mb-4 tracking-tight">
+            Health Overview
+          </h1>
+          <p className="text-xl md:text-2xl text-gray-700 font-light mb-8">
+            comprehensive AI-powered health insights
+          </p>
+        </div>
+        <div className="w-full max-w-5xl">
+          {renderStructuredAdviceCards(emmaAdvice)}
+        </div>
       </div>
     </div>
   );
