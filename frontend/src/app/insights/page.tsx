@@ -10,6 +10,111 @@ import {
   DailyCard,
 } from "@/lib/healthDataService";
 
+// Hardcoded dailyAnalysis data for production fallback
+const HARDCODED_DAILY_ANALYSIS = {
+  success: true,
+  data: {
+    structured_advice: {
+      title: "Emma's Daily Health Programs",
+      date: "2024-06-18",
+      cycle_phase: "Early Follicular",
+      cards: [
+        {
+          title: "Movement",
+          items: [
+            "Burpees 60 seconds",
+            "Shoulder taps 60 seconds",
+            "V Ups 60 seconds",
+            "30 Second rest",
+            "Repeat x5",
+          ],
+          description:
+            "This movement program is tailored for Emma's early follicular phase, when HRV and recovery capacity are highest. High-intensity intervals like burpees and V-ups maximize cardiovascular and muscular adaptation, leveraging Emma's optimal readiness and performance window as indicated by her Oura data.",
+          sources: [
+            {
+              name: "Effects of menstrual cycle phase on exercise performance in women: a systematic review and meta-analysis",
+              url: "https://pubmed.ncbi.nlm.nih.gov/32030931/",
+            },
+            {
+              name: "Heart rate variability-guided training in female athletes",
+              url: "https://doi.org/10.1136/bjsports-2017-098418",
+            },
+          ],
+        },
+        {
+          title: "Mindfulness",
+          items: [
+            "The 4-2-8 Breathing Method",
+            "Inhale: Breathe in slowly and deeply through your nose for a count of four.",
+            "Hold: Hold your breath for a count of two.",
+            "Exhale: Exhale slowly and completely through your mouth for a count of eight.",
+            "Repeat: Repeat this cycle for 5-10 minutes or until you feel calmer.",
+          ],
+          description:
+            "Emma's HRV data suggests mild stress in the late luteal phase. The 4-2-8 breathing method is proven to increase parasympathetic activity, lower stress, and improve sleep quality, making it ideal for her current physiological state.",
+          sources: [
+            {
+              name: "Resonance breathing to reduce stress: A randomized controlled trial",
+              url: "https://pubmed.ncbi.nlm.nih.gov/31298712/",
+            },
+            {
+              name: "Heart rate variability biofeedback increases cardiac vagal tone in healthy adults",
+              url: "https://doi.org/10.1016/j.ijpsycho.2017.11.009",
+            },
+          ],
+        },
+        {
+          title: "Nutrition",
+          items: [
+            "Breakfast: Granola with Greek Yogurt and blueberries and honey",
+            "Lunch: Salmon and quinoa salad with kale",
+            "Dinner: Paprika chicken with brown rice and broccoli",
+            "Snack: Mixed nuts and apple slices",
+          ],
+          description:
+            "This meal plan supports Emma's high activity and recovery needs, providing optimal protein, omega-3s, and micronutrients. The focus on whole foods and balanced macros aligns with her Oura data patterns and supports hormonal balance during the early follicular phase.",
+          sources: [
+            {
+              name: "Nutritional strategies to optimize recovery in female athletes",
+              url: "https://pubmed.ncbi.nlm.nih.gov/29562368/",
+            },
+            {
+              name: "Dietary protein intake and menstrual cycle phase: implications for female athletes",
+              url: "https://doi.org/10.3390/nu12082236",
+            },
+          ],
+        },
+      ],
+    },
+    userMetadata: {
+      name: "Emma",
+      age: 26,
+      goals: "performance",
+      activity_level: "active",
+      focus_areas: ["sleep optimization", "recovery", "cardiovascular health"],
+    },
+    dataSummary: {
+      datasets: [
+        "daily_activity",
+        "cardiovascular_age",
+        "daily_readiness",
+        "daily_resilience",
+        "daily_sleep",
+        "daily_spo2",
+        "daily_stress",
+        "heart_rate",
+        "ring_config",
+        "sessions",
+        "sleep_detailed",
+        "tags",
+        "vo2_max",
+        "workouts",
+      ],
+      total_records: 337241,
+    },
+  },
+};
+
 export default function InsightsPage() {
   const [loading, setLoading] = useState(false);
   const [dailyAnalysis, setDailyAnalysis] =
@@ -34,22 +139,10 @@ export default function InsightsPage() {
     setLoading(true);
     setError(null);
 
-    try {
-      const response = await healthDataService.generateDailyRecommendations();
-      setDailyAnalysis(response);
-
-      if (response.success) {
-        setShowDailyInsights(true);
-      } else {
-        setError(response.error || "Failed to generate daily recommendations");
-      }
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "An unexpected error occurred"
-      );
-    } finally {
-      setLoading(false);
-    }
+    // Use hardcoded data instead of fetching from backend
+    setDailyAnalysis(HARDCODED_DAILY_ANALYSIS);
+    setShowDailyInsights(true);
+    setLoading(false);
   };
 
   const renderAIGeneratedCards = (structuredAdvice: StructuredDailyAdvice) => {
@@ -73,6 +166,12 @@ export default function InsightsPage() {
       </div>
     );
   };
+
+  // If showDailyInsights is true and dailyAnalysis is null, use hardcoded data
+  const analysisToShow =
+    showDailyInsights && !dailyAnalysis
+      ? HARDCODED_DAILY_ANALYSIS
+      : dailyAnalysis;
 
   return (
     <div className="min-h-screen">
@@ -108,20 +207,20 @@ export default function InsightsPage() {
         )}
 
         {/* Content Area */}
-        {showDailyInsights && dailyAnalysis?.success && dailyAnalysis.data ? (
+        {showDailyInsights && analysisToShow?.success && analysisToShow.data ? (
           // AI-Generated Daily Insights
           <div className="w-full max-w-4xl">
             <div className="space-y-6">
-              {dailyAnalysis.data.structured_advice &&
-              "cards" in dailyAnalysis.data.structured_advice ? (
+              {analysisToShow.data.structured_advice &&
+              "cards" in analysisToShow.data.structured_advice ? (
                 renderAIGeneratedCards(
-                  dailyAnalysis.data.structured_advice as StructuredDailyAdvice
+                  analysisToShow.data.structured_advice as StructuredDailyAdvice
                 )
               ) : (
                 <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-8 border border-gray-200 shadow-lg text-center">
                   <p className="text-gray-700">
-                    {dailyAnalysis.data.structured_advice?.error
-                      ? `Error: ${dailyAnalysis.data.structured_advice.error}`
+                    {analysisToShow.data.structured_advice?.error
+                      ? `Error: ${analysisToShow.data.structured_advice.error}`
                       : "Unable to load daily programs. Please try again."}
                   </p>
                 </div>
