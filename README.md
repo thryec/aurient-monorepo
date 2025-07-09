@@ -41,8 +41,6 @@ aurient-monorepo/
 
 ![Reward Demo](videos/aurient-reward-earnings-flow.gif)
 
-> **Note:** GIFs are embedded and will play inline in the README. For longer or higher quality demos, consider linking to external video files or platforms.
-
 ## 🔧 Development
 
 ### Using the Makefile (Recommended)
@@ -75,7 +73,7 @@ make abi
 
 ---
 
-### Manual Setup (Advanced)
+### Manual Setup
 
 ### Prerequisites
 
@@ -171,9 +169,5 @@ The live application includes:
 - **Dashboard**: Manage assets and track earnings
 - **Marketplace**: Browse and purchase health data licenses
 - **Insights**: AI-powered health recommendations
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
