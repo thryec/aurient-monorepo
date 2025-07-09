@@ -136,21 +136,19 @@ The live application includes:
 - **Licensing Flow**: Demonstrate browsing marketplace, purchasing licenses, and license token receipt
 - **Reward Earning Flow**: Show royalty distribution, earnings tracking, and withdrawal process
 
-```markdown
 ## Demo Videos
 
 ### Registration Flow
 
-![Registration Demo](videos/demo/aurient-registration-flow.mp4)
+![Registration Demo](videos/aurient-registration-flow.gif)
 
 ### Licensing Flow
 
-![Licensing Demo](videos/demo/aurient-licensing-flow.mp4)
+![Licensing Demo](videos/aurient-licensing-flow.gif)
 
 ### Reward Earning Flow
 
-![Reward Demo](videos/demo/aurient-reward-earning-flow.mp4)
-```
+![Reward Demo](videos/aurient-reward-earnings-flow.gif)
 
 ## 🔧 Development
 
