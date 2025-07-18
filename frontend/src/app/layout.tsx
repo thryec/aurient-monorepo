@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import PWAInstallPrompt from "@/components/ui/PWAInstallPrompt";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -31,6 +32,18 @@ export const metadata: Metadata = {
       "Transform your health data into valuable IP assets on Story Protocol",
     type: "website",
   },
+  manifest: "/manifest.json",
+  themeColor: "#3b82f6",
+  viewport:
+    "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Aurient",
+  },
+  formatDetection: {
+    telephone: false,
+  },
 };
 export default function RootLayout({
   children,
@@ -39,10 +52,21 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <link rel="manifest" href="/manifest.json" />
+        <link rel="apple-touch-icon" href="/icon-192x192.png" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-title" content="Aurient" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="msapplication-TileColor" content="#3b82f6" />
+        <meta name="msapplication-tap-highlight" content="no" />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased `}
       >
         <main>{children}</main>
+        <PWAInstallPrompt />
       </body>
     </html>
   );

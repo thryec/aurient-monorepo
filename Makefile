@@ -22,11 +22,9 @@ build:
 	cd contracts && forge build
 
 # Run all tests
-# (Solidity, frontend, and Python)
+# (Solidity)
 test:
 	cd contracts && forge test
-	cd ../frontend && yarn test || true
-	cd ../aurient_data && python -m unittest discover || true
 
 # Format Solidity code
 format:

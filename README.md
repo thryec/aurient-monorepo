@@ -54,7 +54,7 @@ make install
 # Build contracts
 make build
 
-# Run all tests (contracts, frontend, data analysis)
+# Run contract tests
 make test
 
 # Start the Next.js frontend
