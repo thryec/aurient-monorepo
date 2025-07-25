@@ -3,346 +3,166 @@ import {
   View,
   Text,
   TouchableOpacity,
-  StyleSheet,
   ScrollView,
   Dimensions,
 } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
 import { COLORS } from "../constants";
 
-const { width } = Dimensions.get("window");
+const { width, height } = Dimensions.get("window");
 
 interface Protocol {
   id: string;
+  type: "movement" | "mindfulness" | "nutrition";
   title: string;
   description: string;
-  category: "movement" | "mindfulness" | "nutrition";
-  icon: string;
-  completed: boolean;
-  explanation: string;
+  duration: string;
   source: string;
+  completed: boolean;
 }
 
-const dailyPlan: Protocol[] = [
-  {
-    id: "movement-1",
-    title: "Morning Walk",
-    description: "15-minute brisk walk to boost metabolism",
-    category: "movement",
-    icon: "🚶",
-    completed: false,
-    explanation:
-      "Walking in the morning helps regulate your circadian rhythm and boosts metabolism for the day.",
-    source: "Journal of Applied Physiology, 2023",
-  },
-  {
-    id: "mindfulness-1",
-    title: "Breathing Exercise",
-    description: "5-minute box breathing for stress reduction",
-    category: "mindfulness",
-    icon: "🫁",
-    completed: false,
-    explanation:
-      "Box breathing activates the parasympathetic nervous system, reducing cortisol levels.",
-    source: "Harvard Health, 2022",
-  },
-  {
-    id: "nutrition-1",
-    title: "Protein-Rich Breakfast",
-    description: "Include 20g protein in your morning meal",
-    category: "nutrition",
-    icon: "🥚",
-    completed: false,
-    explanation:
-      "Protein in the morning helps stabilize blood sugar and provides sustained energy.",
-    source: "Nutrition Research, 2023",
-  },
-];
-
 interface DailyPlansScreenProps {
-  onToggleProtocol: (protocolId: string) => void;
   onViewCalendar: () => void;
 }
 
 export const DailyPlansScreen: React.FC<DailyPlansScreenProps> = ({
-  onToggleProtocol,
   onViewCalendar,
 }) => {
-  const [expandedProtocol, setExpandedProtocol] = useState<string | null>(null);
+  const [protocols, setProtocols] = useState<Protocol[]>([
+    {
+      id: "1",
+      type: "movement",
+      title: "Morning Yoga Flow",
+      description:
+        "A gentle 15-minute yoga sequence to energize your body and mind, focusing on hip openers and gentle twists.",
+      duration: "15 min",
+      source: "Based on your stress levels and sleep quality",
+      completed: false,
+    },
+    {
+      id: "2",
+      type: "mindfulness",
+      title: "Breathing Meditation",
+      description:
+        "Practice 4-7-8 breathing technique to reduce cortisol levels and improve focus throughout the day.",
+      duration: "10 min",
+      source: "Recommended for your elevated stress markers",
+      completed: false,
+    },
+    {
+      id: "3",
+      type: "nutrition",
+      title: "Protein-Rich Breakfast",
+      description:
+        "Include 20g of protein in your morning meal to support muscle recovery and maintain stable energy levels.",
+      duration: "5 min prep",
+      source: "Optimized for your fitness goals and cycle phase",
+      completed: false,
+    },
+  ]);
 
   const toggleProtocol = (protocolId: string) => {
-    onToggleProtocol(protocolId);
+    setProtocols((prev) =>
+      prev.map((protocol) =>
+        protocol.id === protocolId
+          ? { ...protocol, completed: !protocol.completed }
+          : protocol
+      )
+    );
   };
 
-  const toggleExpanded = (protocolId: string) => {
-    setExpandedProtocol(expandedProtocol === protocolId ? null : protocolId);
-  };
-
-  const getCategoryColor = (category: string) => {
-    switch (category) {
+  const getProtocolIcon = (type: string) => {
+    switch (type) {
       case "movement":
-        return "#ef4444";
+        return "💪";
       case "mindfulness":
-        return "#8b5cf6";
+        return "🧘";
       case "nutrition":
-        return "#f59e0b";
+        return "🥗";
       default:
-        return "#6b7280";
+        return "✨";
     }
   };
 
-  const getCategoryLabel = (category: string) => {
-    switch (category) {
+  const getProtocolColor = (type: string) => {
+    switch (type) {
       case "movement":
-        return "Movement";
+        return "bg-blue-100 border-blue-300";
       case "mindfulness":
-        return "Mindfulness";
+        return "bg-purple-100 border-purple-300";
       case "nutrition":
-        return "Nutrition";
+        return "bg-green-100 border-green-300";
       default:
-        return category;
+        return "bg-gray-100 border-gray-300";
     }
   };
 
   return (
-    <LinearGradient
-      colors={["#fed7aa", "#fbbf24", "#a78bfa", "#3b82f6"]}
-      style={styles.container}
-    >
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Today's Plan</Text>
-          <Text style={styles.date}>December 15, 2024</Text>
+    <View className="flex-1 bg-gradient-to-br from-orange-200 via-pink-200 via-purple-300 to-blue-500">
+      <ScrollView className="flex-1 px-6 pt-16">
+        <View className="items-center mb-8">
+          <Text className="text-3xl font-light text-gray-900 text-center mb-4">
+            Today's Plan
+          </Text>
+          <Text className="text-lg font-light text-gray-700 text-center leading-relaxed">
+            Your personalized wellness protocols for today
+          </Text>
         </View>
 
-        <View style={styles.protocolsContainer}>
-          {dailyPlan.map((protocol) => (
-            <View key={protocol.id} style={styles.protocolCard}>
-              <View style={styles.protocolHeader}>
-                <View style={styles.protocolInfo}>
-                  <Text style={styles.protocolIcon}>{protocol.icon}</Text>
-                  <View style={styles.protocolContent}>
-                    <Text style={styles.protocolTitle}>{protocol.title}</Text>
-                    <Text style={styles.protocolDescription}>
-                      {protocol.description}
+        <View className="space-y-4 mb-8">
+          {protocols.map((protocol) => (
+            <View
+              key={protocol.id}
+              className={`rounded-2xl p-6 border-2 ${getProtocolColor(protocol.type)}`}
+            >
+              <View className="flex-row items-center justify-between mb-3">
+                <View className="flex-row items-center gap-3">
+                  <Text className="text-2xl">
+                    {getProtocolIcon(protocol.type)}
+                  </Text>
+                  <View>
+                    <Text className="text-lg font-medium text-gray-900">
+                      {protocol.title}
                     </Text>
-                    <View
-                      style={[
-                        styles.categoryTag,
-                        {
-                          backgroundColor:
-                            getCategoryColor(protocol.category) + "20",
-                        },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.categoryText,
-                          { color: getCategoryColor(protocol.category) },
-                        ]}
-                      >
-                        {getCategoryLabel(protocol.category)}
-                      </Text>
-                    </View>
+                    <Text className="text-sm text-gray-600">
+                      {protocol.duration}
+                    </Text>
                   </View>
                 </View>
                 <TouchableOpacity
-                  style={[
-                    styles.checkbox,
-                    protocol.completed && styles.checkedBox,
-                  ]}
+                  className={`w-6 h-6 rounded-full border-2 items-center justify-center ${
+                    protocol.completed
+                      ? "bg-green-500 border-green-500"
+                      : "bg-white border-gray-300"
+                  }`}
                   onPress={() => toggleProtocol(protocol.id)}
                 >
                   {protocol.completed && (
-                    <Text style={styles.checkmark}>✓</Text>
+                    <Text className="text-white text-sm">✓</Text>
                   )}
                 </TouchableOpacity>
               </View>
 
-              <TouchableOpacity
-                style={styles.expandButton}
-                onPress={() => toggleExpanded(protocol.id)}
-              >
-                <Text style={styles.expandButtonText}>
-                  {expandedProtocol === protocol.id ? "Hide" : "Learn More"}
-                </Text>
-              </TouchableOpacity>
+              <Text className="text-gray-700 leading-relaxed mb-3">
+                {protocol.description}
+              </Text>
 
-              {expandedProtocol === protocol.id && (
-                <View style={styles.expandedContent}>
-                  <Text style={styles.explanationTitle}>Why this works:</Text>
-                  <Text style={styles.explanationText}>
-                    {protocol.explanation}
-                  </Text>
-                  <Text style={styles.sourceText}>
-                    Source: {protocol.source}
-                  </Text>
-                </View>
-              )}
+              <Text className="text-sm text-gray-500 italic">
+                {protocol.source}
+              </Text>
             </View>
           ))}
         </View>
 
-        <View style={styles.actionsContainer}>
+        <View className="items-center pb-8">
           <TouchableOpacity
-            style={styles.calendarButton}
+            className="bg-gray-900 border border-gray-700 px-8 py-4 rounded-full flex items-center gap-3 min-w-[280px] justify-center"
             onPress={onViewCalendar}
           >
-            <Text style={styles.calendarButtonText}>View Calendar</Text>
+            <Text className="text-white text-lg font-light">View Calendar</Text>
+            <Text className="text-white text-lg font-light">→</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
-    </LinearGradient>
+    </View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    paddingHorizontal: 24,
-    paddingTop: 60,
-    paddingBottom: 40,
-  },
-  header: {
-    alignItems: "center",
-    marginBottom: 40,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: "300",
-    color: "#1f2937",
-    marginBottom: 8,
-    textAlign: "center",
-  },
-  date: {
-    fontSize: 16,
-    fontWeight: "300",
-    color: "#6b7280",
-  },
-  protocolsContainer: {
-    gap: 16,
-    marginBottom: 40,
-  },
-  protocolCard: {
-    backgroundColor: "rgba(255, 255, 255, 0.9)",
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: "rgba(229, 231, 235, 0.5)",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  protocolHeader: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    marginBottom: 16,
-  },
-  protocolInfo: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "flex-start",
-  },
-  protocolIcon: {
-    fontSize: 32,
-    marginRight: 16,
-  },
-  protocolContent: {
-    flex: 1,
-  },
-  protocolTitle: {
-    fontSize: 18,
-    fontWeight: "500",
-    color: "#1f2937",
-    marginBottom: 4,
-  },
-  protocolDescription: {
-    fontSize: 14,
-    fontWeight: "300",
-    color: "#6b7280",
-    marginBottom: 8,
-  },
-  categoryTag: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    alignSelf: "flex-start",
-  },
-  categoryText: {
-    fontSize: 12,
-    fontWeight: "500",
-  },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: "#d1d5db",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  checkedBox: {
-    backgroundColor: "#10b981",
-    borderColor: "#10b981",
-  },
-  checkmark: {
-    color: "#ffffff",
-    fontSize: 14,
-    fontWeight: "bold",
-  },
-  expandButton: {
-    paddingVertical: 8,
-  },
-  expandButtonText: {
-    color: "#3b82f6",
-    fontSize: 14,
-    fontWeight: "300",
-  },
-  expandedContent: {
-    marginTop: 16,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: "rgba(229, 231, 235, 0.5)",
-  },
-  explanationTitle: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#1f2937",
-    marginBottom: 8,
-  },
-  explanationText: {
-    fontSize: 14,
-    fontWeight: "300",
-    color: "#374151",
-    lineHeight: 20,
-    marginBottom: 8,
-  },
-  sourceText: {
-    fontSize: 12,
-    fontWeight: "300",
-    color: "#6b7280",
-    fontStyle: "italic",
-  },
-  actionsContainer: {
-    alignItems: "center",
-  },
-  calendarButton: {
-    backgroundColor: "rgba(31, 41, 55, 0.8)",
-    borderWidth: 1,
-    borderColor: "#4b5563",
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    borderRadius: 50,
-    alignItems: "center",
-  },
-  calendarButtonText: {
-    color: "#ffffff",
-    fontSize: 18,
-    fontWeight: "300",
-  },
-});

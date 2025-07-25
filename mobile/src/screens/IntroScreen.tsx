@@ -1,12 +1,5 @@
 import React from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  Dimensions,
-} from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
+import { View, Text, TouchableOpacity, Dimensions } from "react-native";
 import { COLORS } from "../constants";
 
 const { width, height } = Dimensions.get("window");
@@ -17,98 +10,47 @@ interface IntroScreenProps {
 
 export const IntroScreen: React.FC<IntroScreenProps> = ({ onStart }) => {
   return (
-    <LinearGradient
-      colors={["#fed7aa", "#fbbf24", "#a78bfa", "#3b82f6"]}
-      style={styles.container}
-    >
-      <View style={styles.content}>
-        <Text style={styles.title}>Aurient</Text>
-        <Text style={styles.subtitle}>Monetize your health data</Text>
+    <View className="flex-1 justify-center items-center px-4 bg-gradient-to-br from-orange-200 via-pink-200 via-purple-300 to-blue-500">
+      <View className="items-center max-w-[95%]">
+        <Text className="text-5xl font-extralight text-gray-900 mb-3 tracking-tight">
+          Aurient
+        </Text>
+        <Text className="text-xl font-light text-gray-700 mb-8 tracking-wide">
+          Monetize your health data
+        </Text>
 
-        <View style={styles.descriptionContainer}>
-          <Text style={styles.description}>
-            Turn your health data into{" "}
-            <Text style={styles.italic}>IP assets</Text>
+        <View className="items-center mb-6">
+          <Text className="text-3xl font-light text-gray-900 text-center mb-3 leading-tight">
+            Turn your health data into <Text className="italic">IP assets</Text>
           </Text>
-          <Text style={styles.descriptionText}>
+          <Text className="text-lg font-light text-gray-700 text-center leading-relaxed">
             AI-powered wellness insights for women to support where the{" "}
-            <Text style={styles.bold}>medical system</Text> and{" "}
-            <Text style={styles.bold}>wearable tech</Text> have fallen short.
+            <Text className="font-medium">medical system</Text> and{" "}
+            <Text className="font-medium">wearable tech</Text> have fallen
+            short.
           </Text>
         </View>
 
-        <TouchableOpacity style={styles.startButton} onPress={onStart}>
-          <Text style={styles.startButtonText}>Start Here</Text>
-        </TouchableOpacity>
+        <View className="gap-3 items-center">
+          <TouchableOpacity
+            className="bg-gray-900 border border-gray-700 px-6 py-3 rounded-full flex items-center gap-2 min-w-[260px] justify-center"
+            onPress={onStart}
+          >
+            <Text className="text-white text-lg font-light">
+              Protect your health data
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            className="bg-white border border-gray-300 px-6 py-3 rounded-full flex items-center gap-2 min-w-[260px] justify-center"
+            onPress={onStart}
+          >
+            <Text className="text-gray-900 text-lg font-light">
+              Data Marketplace
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
-    </LinearGradient>
+    </View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 24,
-  },
-  content: {
-    alignItems: "center",
-    maxWidth: width * 0.9,
-  },
-  title: {
-    fontSize: 48,
-    fontWeight: "200",
-    color: "#1f2937",
-    marginBottom: 16,
-    letterSpacing: -1,
-  },
-  subtitle: {
-    fontSize: 20,
-    fontWeight: "300",
-    color: "#374151",
-    marginBottom: 48,
-    letterSpacing: 0.5,
-  },
-  descriptionContainer: {
-    alignItems: "center",
-    marginBottom: 48,
-  },
-  description: {
-    fontSize: 28,
-    fontWeight: "300",
-    color: "#1f2937",
-    textAlign: "center",
-    marginBottom: 16,
-    lineHeight: 36,
-  },
-  italic: {
-    fontStyle: "italic",
-  },
-  descriptionText: {
-    fontSize: 16,
-    fontWeight: "300",
-    color: "#374151",
-    textAlign: "center",
-    lineHeight: 24,
-  },
-  bold: {
-    fontWeight: "500",
-  },
-  startButton: {
-    backgroundColor: "rgba(31, 41, 55, 0.8)",
-    borderWidth: 1,
-    borderColor: "#4b5563",
-    paddingHorizontal: 32,
-    paddingVertical: 16,
-    borderRadius: 50,
-    minWidth: 200,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  startButtonText: {
-    color: "#ffffff",
-    fontSize: 18,
-    fontWeight: "300",
-  },
-});

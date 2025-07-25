@@ -3,48 +3,12 @@ import {
   View,
   Text,
   TouchableOpacity,
-  StyleSheet,
   ScrollView,
   Dimensions,
 } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
 import { COLORS } from "../constants";
 
-const { width } = Dimensions.get("window");
-
-interface Feature {
-  id: string;
-  title: string;
-  description: string;
-  icon: string;
-}
-
-const features: Feature[] = [
-  {
-    id: "daily-plans",
-    title: "Daily Plans",
-    description: "Personalized daily wellness protocols",
-    icon: "📅",
-  },
-  {
-    id: "ai-insights",
-    title: "AI Insights",
-    description: "Advanced health analytics and recommendations",
-    icon: "🤖",
-  },
-  {
-    id: "notifications",
-    title: "Smart Notifications",
-    description: "Timely reminders and progress tracking",
-    icon: "🔔",
-  },
-  {
-    id: "community",
-    title: "Community Access",
-    description: "Connect with like-minded wellness enthusiasts",
-    icon: "👥",
-  },
-];
+const { width, height } = Dimensions.get("window");
 
 interface PaywallScreenProps {
   onSubscribe: () => void;
@@ -56,180 +20,81 @@ export const PaywallScreen: React.FC<PaywallScreenProps> = ({
   onSkip,
 }) => {
   return (
-    <LinearGradient
-      colors={["#fed7aa", "#fbbf24", "#a78bfa", "#3b82f6"]}
-      style={styles.container}
-    >
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Unlock Premium</Text>
-          <Text style={styles.subtitle}>
-            Get access to personalized daily plans and advanced insights
+    <View className="flex-1 bg-gradient-to-br from-orange-200 via-pink-200 via-purple-300 to-blue-500">
+      <ScrollView className="flex-1 px-6 pt-16">
+        <View className="items-center mb-8">
+          <Text className="text-4xl font-light text-gray-900 text-center mb-4">
+            Unlock Premium Features
+          </Text>
+          <Text className="text-lg font-light text-gray-700 text-center leading-relaxed">
+            Get personalized daily plans, advanced insights, and priority
+            support
           </Text>
         </View>
 
-        <View style={styles.featuresContainer}>
-          {features.map((feature) => (
-            <View key={feature.id} style={styles.featureCard}>
-              <Text style={styles.featureIcon}>{feature.icon}</Text>
-              <View style={styles.featureContent}>
-                <Text style={styles.featureTitle}>{feature.title}</Text>
-                <Text style={styles.featureDescription}>
-                  {feature.description}
-                </Text>
-              </View>
-            </View>
-          ))}
-        </View>
+        <View className="space-y-4 mb-8">
+          <View className="bg-white/90 rounded-2xl p-6 border border-gray-200">
+            <Text className="text-lg font-medium text-gray-900 mb-2">
+              ✨ Daily Personalized Plans
+            </Text>
+            <Text className="text-gray-700 leading-relaxed">
+              Get customized movement, mindfulness, and nutrition protocols
+              tailored to your cycle and goals.
+            </Text>
+          </View>
 
-        <View style={styles.pricingContainer}>
-          <View style={styles.priceCard}>
-            <Text style={styles.price}>$9.99</Text>
-            <Text style={styles.pricePeriod}>per month</Text>
-            <Text style={styles.priceDescription}>
-              Cancel anytime • 7-day free trial
+          <View className="bg-white/90 rounded-2xl p-6 border border-gray-200">
+            <Text className="text-lg font-medium text-gray-900 mb-2">
+              📊 Advanced Analytics
+            </Text>
+            <Text className="text-gray-700 leading-relaxed">
+              Deep dive into your health patterns with detailed insights and
+              trend analysis.
+            </Text>
+          </View>
+
+          <View className="bg-white/90 rounded-2xl p-6 border border-gray-200">
+            <Text className="text-lg font-medium text-gray-900 mb-2">
+              🔔 Smart Notifications
+            </Text>
+            <Text className="text-gray-700 leading-relaxed">
+              Receive timely reminders and insights based on your health data
+              and preferences.
+            </Text>
+          </View>
+
+          <View className="bg-white/90 rounded-2xl p-6 border border-gray-200">
+            <Text className="text-lg font-medium text-gray-900 mb-2">
+              💬 Priority Support
+            </Text>
+            <Text className="text-gray-700 leading-relaxed">
+              Get direct access to our health coaches and personalized guidance.
             </Text>
           </View>
         </View>
 
-        <View style={styles.actionsContainer}>
+        <View className="items-center space-y-4 pb-8">
           <TouchableOpacity
-            style={styles.subscribeButton}
+            className="bg-gray-900 border border-gray-700 px-8 py-4 rounded-full flex items-center gap-3 min-w-[280px] justify-center"
             onPress={onSubscribe}
           >
-            <Text style={styles.subscribeButtonText}>Start Free Trial</Text>
+            <Text className="text-white text-lg font-light">
+              Subscribe - $9.99/month
+            </Text>
+            <Text className="text-white text-lg font-light">→</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.skipButton} onPress={onSkip}>
-            <Text style={styles.skipButtonText}>Maybe Later</Text>
+          <TouchableOpacity
+            className="bg-white border border-gray-300 px-8 py-4 rounded-full flex items-center gap-3 min-w-[280px] justify-center"
+            onPress={onSkip}
+          >
+            <Text className="text-gray-900 text-lg font-light">
+              Continue with Free Plan
+            </Text>
+            <Text className="text-gray-900 text-lg font-light">→</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
-    </LinearGradient>
+    </View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    paddingHorizontal: 24,
-    paddingTop: 60,
-    paddingBottom: 40,
-  },
-  header: {
-    alignItems: "center",
-    marginBottom: 40,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: "300",
-    color: "#1f2937",
-    marginBottom: 12,
-    textAlign: "center",
-  },
-  subtitle: {
-    fontSize: 16,
-    fontWeight: "300",
-    color: "#374151",
-    textAlign: "center",
-    lineHeight: 24,
-  },
-  featuresContainer: {
-    gap: 16,
-    marginBottom: 40,
-  },
-  featureCard: {
-    backgroundColor: "rgba(255, 255, 255, 0.9)",
-    borderRadius: 16,
-    padding: 20,
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "rgba(229, 231, 235, 0.5)",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  featureIcon: {
-    fontSize: 32,
-    marginRight: 16,
-  },
-  featureContent: {
-    flex: 1,
-  },
-  featureTitle: {
-    fontSize: 18,
-    fontWeight: "500",
-    color: "#1f2937",
-    marginBottom: 4,
-  },
-  featureDescription: {
-    fontSize: 14,
-    fontWeight: "300",
-    color: "#6b7280",
-  },
-  pricingContainer: {
-    marginBottom: 40,
-  },
-  priceCard: {
-    backgroundColor: "rgba(255, 255, 255, 0.9)",
-    borderRadius: 16,
-    padding: 24,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "rgba(229, 231, 235, 0.5)",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  price: {
-    fontSize: 48,
-    fontWeight: "200",
-    color: "#1f2937",
-    marginBottom: 4,
-  },
-  pricePeriod: {
-    fontSize: 16,
-    fontWeight: "300",
-    color: "#6b7280",
-    marginBottom: 8,
-  },
-  priceDescription: {
-    fontSize: 14,
-    fontWeight: "300",
-    color: "#6b7280",
-    textAlign: "center",
-  },
-  actionsContainer: {
-    gap: 16,
-  },
-  subscribeButton: {
-    backgroundColor: "#3b82f6",
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    borderRadius: 50,
-    alignItems: "center",
-  },
-  subscribeButtonText: {
-    color: "#ffffff",
-    fontSize: 18,
-    fontWeight: "300",
-  },
-  skipButton: {
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    alignItems: "center",
-  },
-  skipButtonText: {
-    color: "#6b7280",
-    fontSize: 16,
-    fontWeight: "300",
-  },
-});
