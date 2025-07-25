@@ -17,12 +17,13 @@ Aurient enables users to:
 
 ## 🏗️ Architecture
 
-This monorepo contains three main components:
+This monorepo contains four main components:
 
 ```
 aurient-monorepo/
 ├── contracts/          # Smart contracts (Solidity + Foundry)
 ├── frontend/           # Next.js web application
+├── mobile/             # React Native mobile app (Expo)
 ├── aurient_data/       # Python data analysis toolkit
 └── README.md          # This file
 ```
@@ -136,6 +137,17 @@ cd aurient_data
 python oura_demo.py
 # or for dashboard
 streamlit run oura_streamlit_app.py
+```
+
+#### Mobile App (React Native + Expo)
+
+```bash
+cd mobile
+npm install
+npm start
+# Run on iOS: npm run ios
+# Run on Android: npm run android
+# Run on Web: npm run web
 ```
 
 ### 4. Deployment
